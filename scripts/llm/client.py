@@ -7,22 +7,30 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
-from tqdm import tqdm  # <-- IMPORTADO PARA LA BARRA DE CARGA
+from tqdm import tqdm
 
 from . import schema
 from .cache import Cache, text_key
 from .vocab import Vocab
 
 BASE_URL = "https://api.deepseek.com"
-DEFAULT_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")  # <-- CAMBIADO
+# ✅ CORREGIDO: Usar modelo flash por defecto (más barato)
+DEFAULT_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash")
+# ✅ NUEVO: Timeout por defecto
+DEFAULT_TIMEOUT = 60  # segundos
 
 
 class EmptyContentError(RuntimeError):
     """DeepSeek a veces devuelve content vacío; reintentable."""
+
+
+class TimeoutError(RuntimeError):
+    """Timeout en la llamada a la API."""
 
 
 @dataclass
@@ -32,6 +40,7 @@ class Stats:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     cached_tokens: int = 0
+    total_time: float = 0.0
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def add(self, usage) -> None:
@@ -44,81 +53,168 @@ class Stats:
                 if details:
                     self.cached_tokens += getattr(details, "cached_tokens", 0) or 0
 
+    def add_time(self, seconds: float) -> None:
+        with self._lock:
+            self.total_time += seconds
+
 
 class DeepSeekClient:
-    def __init__(self, vocab: Vocab, model: str = DEFAULT_MODEL, batch_size: int = 10,
-                 workers: int = 4, max_tokens: int = 4096):
+    def __init__(self, vocab: Vocab, model: str = None, batch_size: int = 5,
+                 workers: int = 2, max_tokens: int = 2048, timeout: int = DEFAULT_TIMEOUT):
+        """
+        Cliente para DeepSeek API.
+        
+        Args:
+            vocab: Vocabulario para el prompt system
+            model: Modelo a usar (default: deepseek-v4-flash)
+            batch_size: Tamaño del lote (default: 5)
+            workers: Número de workers concurrentes (default: 2)
+            max_tokens: Máximo de tokens de salida (default: 2048)
+            timeout: Timeout en segundos (default: 60)
+        """
+        # ✅ Usar modelo pasado o el default
+        self.model = model or DEFAULT_MODEL
+        
         api_key = os.environ.get("DEEPSEEK_API_KEY")
         if not api_key:
-            raise SystemExit("Falta DEEPSEEK_API_KEY en el entorno. Exporta tu clave (rotada).")
+            raise SystemExit(
+                "❌ Falta DEEPSEEK_API_KEY en el entorno.\n"
+                "   Exporta tu clave: export DEEPSEEK_API_KEY='tu-clave'"
+            )
+        
         from openai import OpenAI
-        self.client = OpenAI(api_key=api_key, base_url=BASE_URL)
-        self.model = model
+        
+        self.client = OpenAI(
+            api_key=api_key,
+            base_url=BASE_URL,
+            timeout=timeout,  # ✅ NUEVO: timeout en el cliente
+        )
         self.batch_size = batch_size
         self.workers = workers
         self.max_tokens = max_tokens
+        self.timeout = timeout
         self.system = schema.build_system_prompt(vocab)
         self.stats = Stats()
 
-    @retry(reraise=True, stop=stop_after_attempt(3),  # <-- Reducido a 3 intentos
-           wait=wait_exponential(multiplier=1, min=2, max=10),  # <-- Reducido max a 10s
-           retry=retry_if_exception_type((EmptyContentError,)))
+    @retry(
+        reraise=True,
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type((EmptyContentError, TimeoutError, ConnectionError))
+    )
     def _call(self, batch: list[tuple[int, str]]) -> str:
-        resp = self.client.chat.completions.create(
-            model=self.model,
-            temperature=0,
-            max_tokens=self.max_tokens,
-            # SIN response_format para evitar vacíos con v4-flash
-            messages=[
-                {"role": "system", "content": self.system},
-                {"role": "user", "content": schema.build_user_message(batch)},
-            ],
-        )
+        """Llama a la API con un batch de textos."""
+        start_time = time.time()
+        
+        try:
+            resp = self.client.chat.completions.create(
+                model=self.model,
+                temperature=0,
+                max_tokens=self.max_tokens,
+                messages=[
+                    {"role": "system", "content": self.system},
+                    {"role": "user", "content": schema.build_user_message(batch)},
+                ],
+                # ✅ NUEVO: timeout específico para esta llamada
+                timeout=self.timeout,
+            )
+        except Exception as e:
+            # Si es timeout, lanzar nuestra excepción para retry
+            if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                raise TimeoutError(f"Timeout en llamada a API: {e}")
+            raise
+        
+        elapsed = time.time() - start_time
+        self.stats.add_time(elapsed)
         self.stats.add(getattr(resp, "usage", None))
+        
         content = resp.choices[0].message.content
         if not content or not content.strip():
             raise EmptyContentError("content vacío")
+        
         return content
 
     def run(self, pairs: list[tuple[str, str]], cache: Cache,
             on_batch=None) -> None:
+        """
+        Procesa una lista de pares (key, texto) con el LLM.
+        
+        Args:
+            pairs: Lista de (key, texto)
+            cache: Cache para almacenar resultados
+            on_batch: Callback para procesar cada batch
+        """
+        if not pairs:
+            print("  ℹ️ No hay textos para procesar")
+            return
+        
+        # Preparar batches
         batches: list[list[tuple[int, str]]] = []
         keymaps: list[dict[int, str]] = []
+        
         for start in range(0, len(pairs), self.batch_size):
             chunk = pairs[start:start + self.batch_size]
             batches.append([(i, desc) for i, (_, desc) in enumerate(chunk)])
             keymaps.append({i: k for i, (k, _) in enumerate(chunk)})
-
+        
+        print(f"  📦 {len(batches)} lotes de tamaño {self.batch_size}")
+        print(f"  🔧 {self.workers} workers concurrentes")
+        
         def work(idx: int):
-            content = self._call(batches[idx])
-            return idx, content
+            """Trabajo para un worker."""
+            try:
+                content = self._call(batches[idx])
+                return idx, content, None
+            except Exception as e:
+                return idx, None, str(e)
 
-        # Inicializamos la barra de progreso visual con el total de lotes a procesar
-        pbar = tqdm(total=len(batches), desc="Procesando lotes con DeepSeek", unit="lote")
-
-        # Si solo hay 1 worker, ejecutar sin hilos para evitar bugs en Python 3.14
+        # Barra de progreso
+        pbar = tqdm(
+            total=len(batches),
+            desc=f"  🚀 LLM ({self.model})",
+            unit="lote",
+            ncols=100,
+        )
+        
+        # Ejecutar
         if self.workers == 1:
+            # Secuencial (para debugging o entornos limitados)
             for i in range(len(batches)):
                 try:
-                    idx, content = work(i)
-                    if on_batch:
-                        on_batch(content, batches[idx], keymaps[idx], cache)
-                except Exception:
-                    self.stats.errors += 1
-                finally:
-                    pbar.update(1)  # <-- Actualiza la barra en modo secuencial
-        else:
-            with ThreadPoolExecutor(max_workers=self.workers) as ex:
-                futs = {ex.submit(work, i): i for i in range(len(batches))}
-                for fut in as_completed(futs):
-                    try:
-                        idx, content = fut.result()
-                    except Exception:
+                    idx, content, error = work(i)
+                    if error:
                         self.stats.errors += 1
-                        continue
-                    finally:
-                        pbar.update(1)  # <-- Actualiza la barra de forma segura cuando termina cada hilo
-                    if on_batch:
+                        print(f"\n  ⚠️ Error en lote {i+1}: {error[:100]}")
+                    elif on_batch and content:
                         on_batch(content, batches[idx], keymaps[idx], cache)
+                except Exception as e:
+                    self.stats.errors += 1
+                    print(f"\n  ⚠️ Error en lote {i+1}: {e}")
+                finally:
+                    pbar.update(1)
+        else:
+            # Concurrente
+            with ThreadPoolExecutor(max_workers=self.workers) as ex:
+                futures = {ex.submit(work, i): i for i in range(len(batches))}
+                
+                for future in as_completed(futures):
+                    try:
+                        idx, content, error = future.result()
+                        
+                        if error:
+                            self.stats.errors += 1
+                            print(f"\n  ⚠️ Error en lote {idx+1}: {error[:100]}")
+                        elif on_batch and content:
+                            on_batch(content, batches[idx], keymaps[idx], cache)
+                    except Exception as e:
+                        self.stats.errors += 1
+                        print(f"\n  ⚠️ Error inesperado: {e}")
+                    finally:
+                        pbar.update(1)
         
-        pbar.close()  # Cierra la barra de carga limpiamente al finalizar
+        pbar.close()
+        
+        # Resumen
+        print(f"\n  📊 Total: {len(pairs)} textos | {self.stats.requests} requests")
+        if self.stats.errors > 0:
+            print(f"  ⚠️ Errores: {self.stats.errors}")

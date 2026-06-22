@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Extracción estructurada de la Descripción Comercial (Veritrade, partida 8704229000).
-   [VERSIÓN FINAL COMPLETA - SINOTRUK + carrocería corregida + nuevas marcas/modelos]
+"""Extracción estructurada de la Descripción Comercial (Veritrade).
+   [VERSIÓN COMPLETA - CON CATEGORÍA WITHMORY Y NUEVAS MARCAS]
 
-FILTROS: SOLO estado NUEVO | SOLO kilometraje <= 100 km | EXCLUYE: trimotos, motos | SIN filtro de peso
-
-COLUMNAS: submarca_sinotruk | tipo_importador_sinotruk | CORREGIDO: marcas ya no aparecen como carrocería
-NUEVO: ASTRA, KAMAZ, CHENGLONG, AROCS, TRAKKER, TGX, ANTHEM, etc.
+FILTROS: SOLO estado NUEVO | SOLO kilometraje <= 100 km
+EXCLUYE: motos, trimotos, vehículos L5/L6 (subterráneos, mini dumpers)
+MANTIENE: TODOS los volquetes (pesados, livianos, mineros) y TODOS los camiones
+INCLUYE: categoría_withmory (TRACTOCAMIÓN, VOLQUETE, CATEGORIA_PESO)
 """
 from __future__ import annotations
 
@@ -39,6 +39,9 @@ CODES = {
     "PN":("peso_neto","num"),"CU":("carga_util","num"),"LA":("largo_mm","num"),
     "AN":("ancho_mm","num"),"AL":("alto_mm","num"),"DE":("dist_ejes","num"),
     "KILOMETRAJE":("kilometraje","num"),
+    "CLASIFICACION":("clasificacion","text"),
+    "CAJA":("caja","text"),
+    "MODELO_FLAG":("modelo_flag","text"),
 }
 
 EXTRACTED_ORDER = [
@@ -48,6 +51,10 @@ EXTRACTED_ORDER = [
     "ejes","traccion","transmision","carroceria","es_volquete_pesado","asientos","puertas",
     "peso_bruto","peso_neto","carga_util","largo_mm","ancho_mm","alto_mm","dist_ejes",
     "kilometraje","tipo_importador_sinotruk","desc_prefijo",
+    "clasificacion",
+    "caja",
+    "modelo_flag",
+    "categoria_withmory",
 ]
 
 ESTADOS_NUEVOS = ["NUEVO","NUEVA","NEW","NUEVO/0 KM","0 KM","SIN USO","NUEVO SIN USO","NUEVA SIN USO","NUEVO DESARMADO","NUEVO SEMIARMADO"]
@@ -58,54 +65,41 @@ PESO_CATEGORIAS = {
     "MDT 3":(17000,24999),"SEMI PESADO":(25000,32999),"PESADO":(33000,float('inf')),
 }
 
+VOLQUETE_PESADO_MIN_KG = 25000
+TRIMESTRES = {1:"Q1 (Ene-Mar)",2:"Q2 (Abr-Jun)",3:"Q3 (Jul-Sep)",4:"Q4 (Oct-Dic)"}
+
+# ====================================================================
+# ========== CARROCERÍAS A EXCLUIR (SOLO MOTOS Y SIMILARES) ==========
+# ====================================================================
 CARROCERIAS_EXCLUIR = [
     "TRIMOTO CARGA", "TRIMOTO", "MOTOCAR", "MOTOTAXI", "MOTO CARGA",
     "MOTO", "CUATRIMOTO", "TRICICLO", "TRICIMOTO",
     "MOTO FORM", "CARMELI MOTORS", "MOTOS ARMOT", "AB MOTORS",
     "KEANE MOTORS", "KAMA", "CK MOTORS", "BEEMOTOR", "FURINKAZAN",
-    "SHILI", "DAVEST", "MEI", "JINWANG", "GUDAO ANDES", "GUDÃO ANDES",
-    "PERFOMIN", "CARGAMAX", "GREENLINE", "SINMAN", "POLUX",
-    "LIANKE", "YANSUMI", "HOMAN", "IRON", "WOOPE", "SAIGE",
-    "BI", "HELEX", "HUANSHENG", "ENERGY JAST", "CP PEREYRA",
-    "T-KING", "FORCCH", "YAPU", "SAMITZA", "S/M", "SIN MARCA",
-    # NUEVAS - MATADERO
-    "DI SHEN", "ANMING", "OPAI", "JINQILUGE", "GOLD WHEELS",
-    "LIVOLT", "ZHONGLIANG", "INDUSTRIAL MACHINE", "INDUSTRIAL MACHINNE",
-    "MITALNER", "BOJI", "GUDAO", "JIN WANG MACHINERY", "ERMINSUB",
-    "JWM", "SHARK", "CABALLO RAPIDO", "WAW", "JINSHUN", "JING PENG",
-    "SINMA", "WHINSTHON", "YONSLAND", "LIANTUOSHI", "CONGHUI",
-    "GONGYI XIAOYI", "MBAO", "UNEX", "LUXIÓN", "PROMINING GROUP",
-    "LA BESTIA", "RODAMIN", "TAO HAO", "HENGSHENG", "CHIANG",
-    "WEGO", "DHF", "DA LONG YING HAO", "ULIX", "S-M", "LIAKNE",
-    "JINIANG", "HENGCHI", "HEXUN", "SHANGSHI", "KAPURO", "LINKE",
-    "DALBERLANDIAN", "ZONSEN", "SINO MIMAQ", "SUNCYCLE", "GUOWEI",
-    "TAILG", "FUZHENG", "FEKON", "FEMI", "JINXIANG", "HAN XUE HAN MA",
-    "HAOLIN", "HENGMING", "HUASHENG", "HONGSHENG", "JIANGHUAI",
-    "LURIKA", "TAIGL", "QIANGSHENG", "RUICHI", "TITANIUM MEDICAL",
-    "TAILING", "LEKO", "MINGZHAN", "JJ5000", "SEGE", "XUZHOU KETU",
-    "LUKEEV", "3PLUSCOCO", "RLQ", "MPV", "SAN XIN", "ROWOR",
-    "WINLEE", "ZHANLANG", "ZIXIEWANG", "JIALONG", "JX", "XINHONGMA",
-    "SUMAHAO", "XINSHANDI", "SHANDONG JIESHENG", "NEW EAST DAY",
-    "MST", "HUNK MACHINERY", "SHANDONG JULONG", "XWD XINGYE",
-    "YANTAI HUNK", "ZHENGZHOU LIANKE MACHINERY", "DA YI´AN",
-    "SQMG", "DENAIR", "SAAO", "QINJI", "HAMAC", "CHENG LIWE",
-    "JIAQING", "WUZHENG", "XIAOBAWANG", "YG", "GDC-02", "HOLDER",
-    "HUANGSHENG", "JIV", "SPARK", "SOJEN", "VOLK",
 ]
 
-VOLQUETE_PESADO_MIN_KG = 25000
-TRIMESTRES = {1:"Q1 (Ene-Mar)",2:"Q2 (Abr-Jun)",3:"Q3 (Jul-Sep)",4:"Q4 (Oct-Dic)"}
-
+# ====================================================================
 # ========== SINOTRUK ==========
+# ====================================================================
 SINOTRUK_SUBMARCAS = {
-    "SINOTRUK":"SINOTRUK","SINOTRUCK":"SINOTRUK","SITRAK":"SINOTRUK SITRAK",
-    "HOWO":"SINOTRUK HOWO","HOWO MAX":"SINOTRUK HOWO","SINOTRUK HOWO":"SINOTRUK HOWO",
-    "SINOTRUK SITRAK":"SINOTRUK SITRAK","SINOTRUK HONAN":"SINOTRUK HONAN",
-    "HONAN":"SINOTRUK HONAN","SINOTRUK WANGPAI":"SINOTRUK WANGPAI","WANGPAI":"SINOTRUK WANGPAI",
+    "SINOTRUK": "SINOTRUK",
+    "SINOTRUCK": "SINOTRUK",
+    "SITRAK": "SINOTRUK SITRAK",
+    "HOWO": "SINOTRUK HOWO",
+    "HOWO MAX": "SINOTRUK HOWO",
+    "SINOTRUK HOWO": "SINOTRUK HOWO",
+    "SINOTRUK SITRAK": "SINOTRUK SITRAK",
+    "SINOTRUK HONAN": "SINOTRUK HONAN",
+    "HONAN": "SINOTRUK HONAN",
+    "HOMAN": "SINOTRUK HONAN",
+    "SINOTRUK WANGPAI": "SINOTRUK WANGPAI",
+    "WANGPAI": "SINOTRUK WANGPAI",
 }
 
 IMPORTADORES_SINOTRUK = {
-    "DIRECTO":["ZOOMLION HEAVY INDUSTRY PERU S.A.C.","XCMG PERU S.A.C.","AREQUIPA EXPRESO MARVISUR EIRL"],
+    "DIRECTO":[
+        "ZOOMLION HEAVY INDUSTRY PERU S.A.C.","XCMG PERU S.A.C.","AREQUIPA EXPRESO MARVISUR EIRL"
+    ],
     "NO OFICIAL":[
         "SINOHYDRO CORPORATION LIMITED, SUCURSAL DEL PERU","TOP CONCRET E.I.R.L.",
         "TRACTO MOTORS SOCIEDAD ANONIMA CERRADA","BRILLANTE SL S.A.C.",
@@ -125,8 +119,11 @@ IMPORTADORES_SINOTRUK = {
         "IMPORT EXPORT INKA LOADER EMPRESA INDIVIDUAL DE RESPONSABILIDAD LIMITADA","TRANSGRUAS PERU S.A.",
         "OSLO SOCIEDAD ANONIMA - OSLO S.A.","TRANSPORTES Y SERVICIOS MULTIPLES HUANCARUMI SOCIEDAD LIMITADA DE RESPONSABILIDAD LIMITADA",
         "PALTARUMI SOCIEDAD ANONIMA CERRADA - PALTARUMI S.A.C.","GEOEXPLORASONDEOS E.I.R.L.","DISTRIBUIDORA N & T S.A.C.",
+        "CORPORATION WITHMORY S.R.L.",
     ],
-    "OFICIAL":["PREMIER MOTORS S.A.","CAMIONES CHINOS PERU S.A.C.","CORIEX DS S.A.C.","J.CH.COMERCIAL S.A.","ANDES MOTOR PERU S.A.C.","CORPORATION WITHMORY S.R.L.","COMINKA MOTORS S.A.C.","ZAPLER S.A.C.","SINOTRUK PERU S.A.C."],
+    "OFICIAL":[
+        "PREMIER MOTORS S.A.","CAMIONES CHINOS PERU S.A.C.","CORIEX DS S.A.C.","J.CH.COMERCIAL S.A.","ANDES MOTOR PERU S.A.C.","COMINKA MOTORS S.A.C.","ZAPLER S.A.C.","SINOTRUK PERU S.A.C."
+    ],
 }
 
 IMPORTADOR_TIPO = {}
@@ -137,14 +134,17 @@ def normalizar_submarca_sinotruk(marca):
     if pd.isna(marca): return None
     marca_upper = str(marca).upper().strip()
     for key, value in SINOTRUK_SUBMARCAS.items():
-        if key in marca_upper: return value
+        if key in marca_upper:
+            return value
     return None
 
 def clasificar_importador_sinotruk(importador):
     if pd.isna(importador): return None
     return IMPORTADOR_TIPO.get(str(importador).upper().strip(), None)
 
-# ========== MARCAS (ORIGINALES + NUEVAS) ==========
+# ====================================================================
+# ========== MARCAS (COMPLETAS ACTUALIZADAS) ==========
+# ====================================================================
 BRANDS = [
     "MERCEDES BENZ","MERCEDES-BENZ","MERCEDES","FREIGHTLINER","INTERNATIONAL",
     "VOLKSWAGEN","DONGFENG","SINOTRUK","SHACMAN","KENWORTH","MITSUBISHI",
@@ -162,13 +162,23 @@ BRANDS = [
     "UTILITY","JEREH","PETRO KH","PARTINDUS","DIECI","TERRAMAC","WESTWELL","SPARTAN",
     "TOYOTA","NISSAN","FORD","SUBARU","RENAULT","TESLA","DAEWOO","NISSAN DIESEL","PEGASO",
     "LUNA","NOV ROLLIGON","PEERLESS","SUPER-ABOVE","NUESON","KEYU","BARFORD","GROVE",
-    # NUEVAS
     "ASTRA","KAMAZ","CHENGLONG",
+    "T-KING","IVECO ASTRA","CLAVE 7","TORQ-E","HIGER","LGMG","AIMIX","CIFA",
+    "FEICHI","DA YI´AN","SQMG","DRIVARO","E-ONE","POWERBOSS","HONGYUAN",
+    "SHENHE LIANDA","FMAN","RAM WILLIAMS","KING LONG","JIANGHUAI","KALMAR",
+    "SHAOLIN","CLD","JINSHI",
+    # ===== NUEVAS MARCAS DETECTADAS =====
+    "SHIFENG",
+    "KAMA",
+    "QIJING",
+    "JIN WANG",
 ]
 BRAND_RE = re.compile(r"\b(" + "|".join(re.escape(b) for b in BRANDS) + r")\b", re.I)
 MARCAS_COMO_CARROCERIA = set(b.upper() for b in BRANDS)
 
+# ====================================================================
 # ========== CARROCERÍA ==========
+# ====================================================================
 CARROCERIA_MAP = {
     "REMOLCADOR":"TRACTOCAMIÓN","TRACTOR":"TRACTOCAMIÓN","TRACTO":"TRACTOCAMIÓN",
     "TRACTOCAMION":"TRACTOCAMIÓN","TRACTOCAMIÓN":"TRACTOCAMIÓN","CABEZAL":"TRACTOCAMIÓN",
@@ -182,9 +192,21 @@ CARROCERIA_MAP = {
     "GANADERA":"GANADERA","PORTACONTENEDOR":"PORTACONTENEDOR","GRUA":"GRÚA","GRÚA":"GRÚA",
     "HORMIGONERA":"HORMIGONERA","MEZCLADOR":"MEZCLADORA","COMPACTADOR":"COMPACTADOR",
     "CHASIS CABINA":"CHASIS CABINA","CAMA BAJA":"CAMA BAJA",
+    "PANEL":"FURGÓN",
+    "MINI DUMPER":"VOLQUETE",
+    "PICK UP":"PLATAFORMA",
+    "BOMBERO":"CARRO BOMBA",
+    "PERFORADOR":"MAQUINARIA",
+    "ELEVADOR":"PLATAFORMA ELEVADORA",
+    "REPARAVIAS":"MAQUINARIA",
+    "RADIOLOGICO":"MAQUINARIA",
+    "EXPLOSIVOS":"MAQUINARIA",
+    "AUXILIO MECANICO":"GRÚA",
 }
 
-# ========== MODELOS (ORIGINALES + NUEVOS) ==========
+# ====================================================================
+# ========== MODELOS POR MARCA (ACTUALIZADO CON NUEVAS MARCAS) ==========
+# ====================================================================
 MODELOS_POR_MARCA = {
     "FREIGHTLINER":["M2","M2 106","M2 112","CASCADIA","COLUMBIA","CENTURY","FL112","BUSINESS CLASS"],
     "INTERNATIONAL":["4300","4400","4700","4900","7600","WORKSTAR","DURASTAR","LONESTAR","PROSTAR","HV607"],
@@ -197,8 +219,8 @@ MODELOS_POR_MARCA = {
     "HYUNDAI":["HD78","HD120","HD170","HD260","HD270","XCIENT","HD35","HD65","HD10","H100 TRUCK","EX6","HQC2"],
     "HINO":["300","500","700","DUTRO","RANGER","XZU720L"],
     "FUSO":["CANTER","FIGHTER","SUPER GREAT"],
-    "ISUZU":["NPR","NQR","FRR","FTR","FVR","GIGA","NQR90L-MQ5VAYPEN","NPR75L-KL5VAYPEN","NPS75L-HJ5VAYPEN","XZU720L"],
-    "SITRAK":["C7H","C9H","ZZ4256V324HE1B","ZZ4256V384HE1C","ZZ4256V384HE1CB","ZZ4257V384HE1C","ZZ4257V424KE1CK","ZZ4257V344JB1R","ZZ1316N306GE1"],
+    "ISUZU":["NPR","NQR","FRR","FTR","FVR","GIGA","NQR90L-MQ5VAYPEN","NPR75L-KL5VAYPEN","NPS75L-HJ5VAYPEN","XZU720L","600 P","KV100 BUS"],
+    "SITRAK":["C7H","C9H","ZZ4256V324HE1B","ZZ4256V384HE1C","ZZ4256V384HE1CB","ZZ4257V384HE1C","ZZ4257V424KE1CK","ZZ4257V344JB1R","ZZ1316N306GE1","ZZ4252V3247F1W","ZZ4256V344HE1B","ZZ4256V364HE1B","ZZ4256V384HE1L","ZZ1256N364MD1","ZZ5226N481GF1","ZZ5336N464GF1","ZZ5446V406ME1","ZZ1256V564ME1","ZZ3256N364SE1","ZZ3256V364HE1","ZZ1316N306ME1"],
     "SINOTRUK":["C7H","T7H","MAX","MAX-E","ZZ4257V344HE1","ZZ4257V344HB1","ZZ4257V384HE1C","ZZ5237N521GE1","ZZ1315N3063E1","ZZ1257V384GB1","ZZ1317N306GF1","TX 350","ZZ1317N466JE1","ZZ3257V364GB1","ZZ3257V364GC1","ZZ1317V466JE1","ZZ1257V5847E1","ZZ1257V5847F1","ZZ1167N561GC1","ZZ5447TXFV466MF1","ZZ1148F3415E1C","ZZ3317V286GC1","ZZ3257N3647P1","ZZ3168F3415E1","ZZ1167M561GE1"],
     "SHACMAN":["X3000","X5000","X6000","F3000","M3000","L3000","LT625","SX42585Y344C","SX42584V404T","SX4250XC4Q2","SX42586W404C","SX5166ZYSMM381C","SX5318JSQ6W456C","SX5258GJB6S384C","SX5258GJB6R364C","SX5258GJB6R384C","SX5310GJBMB6","SX5318JSQ6W366C","SX5318JSQ62386C","SX5258ZYSHT564T","SX325862354C","SX331862306C","SX3255M3M39","SX331852306C"],
     "FOTON":["AUMAN","AUMARK","VIEW","EST","BJ4269","BJ4253","BJ1226","BJ4353","BJ5319GJB-AF","BJ4259SMFKB","BJ4269SNFKB","BJ3259DLPKB"],
@@ -206,7 +228,7 @@ MODELOS_POR_MARCA = {
     "THWAITES":["SKT105S","TA6","C06","D11","C05","C06 PRO"],
     "CAMC":["AH5316GJB6L6","HN5250P35C6M3","HN5250P35C6M3GJB","HN1310HB35CLM5J"],
     "IVECO":["TRAKKER","S-WAY","T-WAY","X-WAY","TECTOR","EUROCARGO","DAILY","AS440X46T/P","AD410T50H","380T41H","BA3C"],
-    "DONGFENG":["CAPTAIN","KINGRUN","DFH4250C2","DFH4180C80","DFH3250A","DFH3310A6","DFL1250AW2","DFV4258GP6C","DFH4271"],
+    "DONGFENG":["CAPTAIN","KINGRUN","DFH4250C2","DFH4180C80","DFH3250A","DFH3310A6","DFL1250AW2","DFV4258GP6C","DFH4271","YZR5070TQZEQ","DOLLICAR D6","DFH3250A1"],
     "MAN":["TGS","TGX","TGM","TGL","TGS 26.480","TGS 40.480","TGS 41.480","TGX 26.540"],
     "DAF":["XF530","CF410","CF480","XF105","CF85","XF530 FTM"],
     "JAC":["SUNRAY","X200","HFC4252","HFC4255","HFC3251KN","HFC3251P1K5E39V"],
@@ -217,6 +239,70 @@ MODELOS_POR_MARCA = {
     "CHENGLONG":["LZ4250H7DM03"],
     "KAMAZ":["KAMAZ 6520","6520"],
     "MACK":["ANTHEM","GRANITE","PINNACLE","VISION","MR688S"],
+    "HOMAN":["ZZ1048D3314D145","ZZ1148F3415E1C"],
+    "SINMAN":["ZL-05","ZL100","ZL150","ZL200","ZL300","ZL50-2","ZL50-3","ZL50-5","ZL50-6","ZWY-40"],
+    "GREENLINE":["FB130","H21-180","TC1-110","TC1-130","TC1-160","TC1-160C","TC1-85","TC2-110A","TC2-130","TC2-160"],
+    "BI":["BI-4T","BI08E","BI100","BI150","BI150D","BI150E","BI200","BI250E","BI250ERA","BI270D","BI300D","BI350D","BI400D"],
+    "HELEX":["NR-D15","NR-D25","NR-D30","NR-E10","NR-E15","NR-E15L","NR-E30","NR-HP6","NR-T60","NR-TE60"],
+    "ENERGY JAST":["CRG13","CRG13T","CRG15","CRG16T"],
+    "SAIGE":["CHUANQI","CHUANQI PLUS","JS","Q13","ST"],
+    "WOOPE":["T-1000","T-3000"],
+    "CP PEREYRA":["CP 135","CP136","EU-156T","HS155","HS160","SL-153T"],
+    "MEI":["MEI 4219","MEI 50H","MEI24MZ","72V1200W"],
+    "DAVEST":["E-CARGO","E-CARGO-2","E-CARGO-3"],
+    "IRON":["FENGCHI"],
+    "QOMOLO":["E-TRUCK"],
+    "FACAM":["NR-T60","NR-E15","NR-E20","NR-GT5","NR-TE60"],
+    "LGMG":["CMS40","CMT 106","CMT106","MT96H","RTH100","RTH136"],
+    "CLAVE 7":["GP6850","KMC1035D4","KMC1048P4","KMC1142P4","KMC1165P5","KMC5023XXY305S6","QL1100A8MAHY","QL1100A8PAY","QL1110ANMACY","QL1110ANPACY-PW35A"],
+    "TONLY":["DTH145","TL885A","TLD96","TLH135","TLK451"],
+    "T-KING":["ZB1020BDC3F","ZB1020BSC3F","ZB1032VDD2L","ZB1032VSD2L","ZB1040VDD2L","ZB1041JDD6F","ZB1041VDD2L","ZB1042LDD6F","ZB1043JDD6L","ZB1080JDE3F","ZB5020XXYBDC3F","ZB5032XXYVDD2L"],
+    "HIGER":["KLQ6126DFC","KLQ6756DFE4A","KLQ6898BA","KLQ6898EBA"],
+    "LK":["LK135D","LK270D"],
+    "DRIVARO":["HLW5030BG","HLW5040BD"],
+    "FIORI":["DB460","DBX35","DBX50"],
+    "SUPER-ABOVE":["SA5070TSLD3","SA5090TQZ6","SA5250GJB5","SA5251GJB","SA5251GPS","SA5252TQZS5","SA5253ZYS","SA5254ZYS5"],
+    "E-ONE":["ARFF TITAN P801","RESCUE TYPHOON"],
+    "FMAN":["FM540SLA PLUS","HN5250P35C6M5GJB"],
+    "AIMIX":["AS-3.5","AS-3.5C","AS-4.0"],
+    "IVECO ASTRA":["HD9 64.41","HD9 64.48","HD9 64.48T","HD9 84.52"],
+    "TORQ-E":["JX 002","VOLQ 2.0"],
+    "CIFA":["COGUARO 4 3A"],
+    "FEICHI":["SDC-2350D"],
+    "DA YI´AN":[],
+    "SQMG":["JBC-4.0D"],
+    "POWERBOSS":["10XT3DSL","SW6XKLPG"],
+    "HONGYUAN":["HY500","HY550"],
+    "SHENHE LIANDA":["ESH5180TBC","ESH5250GJB","ESH5310GGJB"],
+    "RAM WILLIAMS":["2500 4X4 RANGER"],
+    "KING LONG":["XMQ6520EV"],
+    "JIANGHUAI":["JHH1200DZH-30C"],
+    "KALMAR":["TR618I"],
+    "SHAOLIN":["SL6120W5VAT"],
+    "CLD":["CLD5030XLC6TH"],
+    "JINSHI":["KFC-18"],
+    "C&C":["QCC4253N664"],
+    "RLQ":["RLQ5180GSJJF6"],
+    "BENFORD TEREX":["PT6000","PT9000"],
+    "BEIJING FOTON DAIMLER AUT":["BJ1181Y6AKL-01"],
+    "ISUZU QINGLING":["600 P","KV100 BUS"],
+    "RCM":["BOXER D PLUS.1","BOXER SK2 PLUS.1","R DUEMILA E/1"],
+    "GDC-02":["7YP-1450DAB1"],
+    "SHANDONG JULONG":["1.7*2.4"],
+    "SHANDONG JIESHENG":["JS-300"],
+    "ZHENGZHOU LIANKE MACHINERY":["MW3P"],
+    "HAMAC":["HMC400"],
+    "ZNA - ZHENGZHOU NISSAN AUTOMOBILE":["RICH 7 EV"],
+    "AUMAN":["BJ5313GJB-AA","BJ5253Y6DLL-01","BJ5313GJB-LM","BJ5319GJB-AD","BJ5319GJBY6GRL-01","BJ4259Y6DHL-25"],
+    "HOWO MAX":["ZZ4257V424KF1LK"],
+    "WANGPAI":["CDW5180GJBA2Q6"],
+    "OPAI":["L2E-U"],
+    "JIV":["KMC1035D4","KMC1040D3","KMC1067D4"],
+    # ===== NUEVOS MODELOS PARA NUEVAS MARCAS =====
+    "SHIFENG":["SSF3042DDP84","SSF3042DDP85"],
+    "KAMA":["KMC1067P4","KMC5067XXYD4","KMC1165D5","KMC5165XXYD5","KMC5167XXYP5"],
+    "QIJING":["QHV5180JSQDF"],
+    "JIN WANG":["UK-6"],
 }
 
 MODEL_PATTERNS = [
@@ -256,17 +342,30 @@ MODEL_PATTERNS = [
     r'\b(LZ\d{4})\b',
     r'\b(KAMAZ|6520)\b',
     r'\b(ANTHEM|GRANITE|PINNACLE|VISION|MR\d{3})\b',
+    r'\b(CDW5180GJBA2Q6)\b',
+    r'\b(HLW5030BG|HLW5040BD)\b',
+    r'\b(CLD5030XLC6TH)\b',
+    r'\b(KFC-18)\b',
+    r'\b(COGUARO 4 3A)\b',
+    r'\b(HMC400)\b',
+    r'\b(SSF3042DDP84|SSF3042DDP85)\b',
+    r'\b(KMC1067P4|KMC5067XXYD4|KMC1165D5|KMC5165XXYD5|KMC5167XXYP5)\b',
+    r'\b(QHV5180JSQDF)\b',
+    r'\b(UK-6)\b',
 ]
 
 MODEL_RE = re.compile('|'.join(MODEL_PATTERNS), re.IGNORECASE)
-VOLQUETE_RE = re.compile(r'\b(VOLQUETE|VOLQUETA|TOLVA|VOLQUETE\s*DOBLE|DUMPER)\b', re.IGNORECASE)
+VOLQUETE_RE = re.compile(r'\b(VOLQUETE|VOLQUETA|TOLVA|VOLQUETE\s*DOUBLE|DUMPER)\b', re.IGNORECASE)
 GENERIC_CODE_RE = re.compile(r"(?:^|[,;\s])((?:CH/VIN)|[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9.]{0,14})\s*:",)
 CATEGORY_RE = re.compile(r"^\s*(N\d)", re.IGNORECASE)
 YEAR_RE = re.compile(r"A[ÑN]O(?:\s*MOD)?\s*:?\s*((?:19|20)\d{2})", re.IGNORECASE)
 NUM_RE = re.compile(r"-?\d+(?:[.,]\d+)?")
 FUEL_RE = re.compile(r"DIESEL|PETROLEO|GASOLINA|GAS\b|GNV|GLP|ELECTR|H[IÍ]BRID|DUAL|BIODIESEL", re.I)
 
+# ====================================================================
 # ========== FUNCIONES ==========
+# ====================================================================
+
 def clasificar_peso(kg_bruto):
     if pd.isna(kg_bruto) or kg_bruto is None: return None
     kg = float(kg_bruto)
@@ -278,9 +377,97 @@ def es_volquete_pesado(row):
     if pd.isna(row.get('carroceria')) or pd.isna(row.get('kg_bruto')): return "NO"
     return "SÍ" if 'VOLQUETE' in str(row['carroceria']).upper() and float(row['kg_bruto'])>=VOLQUETE_PESADO_MIN_KG else "NO"
 
-def es_carroceria_excluida(c):
-    if pd.isna(c): return False
-    cu = str(c).upper()
+# ============================================================
+# ✅ CLASIFICACIÓN WITHMORY
+# ============================================================
+def clasificar_withmory(row):
+    """
+    Clasifica según la lógica WITHMORY:
+    - TRACTOCAMIÓN: si carroceria contiene TRACTOCAMIÓN, REMOLCADOR o TRACTOR
+    - VOLQUETE: si carroceria contiene VOLQUETE (todos, sin importar peso)
+    - CATEGORIA_PESO: si no entra en las anteriores
+    """
+    carroceria = str(row.get('carroceria', '')).upper()
+    kg_bruto = row.get('kg_bruto', 0)
+    categoria_peso = row.get('categoria_peso', '')
+    
+    # 1. TRACTOCAMIÓN
+    if any(x in carroceria for x in ['TRACTOCAMIÓN', 'TRACTOCAMION', 'REMOLCADOR', 'TRACTOR']):
+        return 'TRACTOCAMIÓN'
+    
+    # 2. VOLQUETE (todos los volquetes, sin importar peso)
+    if 'VOLQUETE' in carroceria or 'VOLQUETA' in carroceria:
+        return 'VOLQUETE'
+    
+    # 3. Si no es tracto ni volquete, usar categoria_peso
+    if pd.notna(categoria_peso) and str(categoria_peso).strip():
+        return str(categoria_peso).strip()
+    
+    return 'SIN_CATEGORIA'
+
+# ============================================================
+# ✅ CORREGIDO: FILTRO DE CARROCERÍA - SOLO EXCLUYE MOTOS Y L5/L6
+# ============================================================
+def es_carroceria_excluida(row):
+    """
+    EXCLUYE SOLAMENTE:
+    - Motos, trimotos, cuatrimotos, motocares
+    - Vehículos L5, L6 (subterráneos, mini dumpers, vehículos ligeros)
+    
+    MANTIENE:
+    - TODOS los volquetes (pesados, livianos, mineros)
+    - TODOS los camiones (N2, N3)
+    - TODOS los vehículos comerciales
+    """
+    if isinstance(row, dict) or hasattr(row, 'get'):
+        carroceria = row.get('carroceria')
+        kg_bruto = row.get('kg_bruto')
+        categoria = row.get('categoria', '')
+        descripcion = row.get('_descripcion', '')
+        marca = row.get('marca', '')
+    else:
+        carroceria = row
+        kg_bruto = None
+        categoria = ''
+        descripcion = ''
+        marca = ''
+    
+    if pd.isna(carroceria):
+        return False
+    
+    cu = str(carroceria).upper()
+    cat = str(categoria).upper()
+    desc = str(descripcion).upper()
+    mar = str(marca).upper()
+    
+    # ============================================================
+    # 1. NUNCA EXCLUIR VOLQUETES (pase lo que pase)
+    # ============================================================
+    if 'VOLQUETE' in cu or 'VOLQUETA' in cu:
+        return False  # Siempre mantener
+    
+    # ============================================================
+    # 2. MANTENER VOLQUETES DE MARCAS DE MAQUINARIA PESADA
+    # ============================================================
+    marcas_volquete = ['SANY', 'XCMG', 'KOMATSU', 'TONLY', 'ZOOMLION', 'LGMG', 'LIUGONG', 'SHACMAN']
+    if any(m in mar for m in marcas_volquete) and ('VOLQUETE' in cu or 'DUMPER' in cu):
+        return False  # Mantener
+    
+    # ============================================================
+    # 3. EXCLUIR VEHÍCULOS L5 Y L6 (subterráneos, livianos, mini dumpers)
+    # ============================================================
+    if cat.startswith('L5') or cat.startswith('L6'):
+        return True  # Excluir
+    
+    # ============================================================
+    # 4. EXCLUIR MOTOS, TRIMOTOS, CUATRIMOTOS, MOTOCARES
+    # ============================================================
+    if any(x in cu for x in ['MOTO', 'TRIMOTO', 'CUATRIMOTO', 'MOTOCAR', 'MOTOTAXI']):
+        return True
+    
+    # ============================================================
+    # 5. EXCLUIR CARROCERÍAS NO DESEADAS (de la lista)
+    # ============================================================
     return any(e in cu for e in CARROCERIAS_EXCLUIR)
 
 def es_estado_nuevo(e):
@@ -330,7 +517,9 @@ def detectar_modelo_por_texto(desc, marca=None):
                 if mod.upper() in str(desc).upper(): return mod.upper()
     return None
 
+# ====================================================================
 # ========== PARSEO ==========
+# ====================================================================
 def parse_descripcion_vectorized(df):
     print("  Inicializando columnas extraídas...")
     for col in EXTRACTED_ORDER: df[col] = None
@@ -375,6 +564,62 @@ def parse_descripcion_vectorized(df):
     print("  Identificando volquetes pesados (>25 Ton)...")
     df['es_volquete_pesado'] = df.apply(es_volquete_pesado, axis=1)
     
+    # ============================================================
+    # ✅ CORRECCIÓN: TRACTOCAMIONES CON CARGA ÚTIL = 0
+    # ============================================================
+    print("  Corrigiendo carga útil para tractocamiones...")
+    if 'carroceria' in df.columns and 'carga_util' in df.columns:
+        tracto_mask = df['carroceria'].str.upper().str.contains('TRACTOCAMI|TRACTOR|REMOLCADOR', na=False)
+        if tracto_mask.any():
+            df.loc[tracto_mask, 'carga_util'] = 0
+            print(f"    ✅ Carga útil corregida a 0 para {tracto_mask.sum()} tractocamiones")
+    
+    # ============================================================
+    # ✅ CLASIFICACIÓN AUTOMÁTICA
+    # ============================================================
+    print("  Clasificando vehículos...")
+    
+    if 'categoria' in df.columns:
+        df['clasificacion'] = df['categoria']
+    elif 'kg_bruto' in df.columns:
+        def clasificar_por_peso(kg):
+            if pd.isna(kg):
+                return 'SIN_CLASIFICAR'
+            try:
+                kg = float(kg)
+                if kg < 3500:
+                    return 'LIGERO'
+                elif kg < 6000:
+                    return 'LDT 1'
+                elif kg < 10000:
+                    return 'LDT 2'
+                elif kg < 15000:
+                    return 'MDT 1'
+                elif kg < 17000:
+                    return 'MDT 2'
+                elif kg < 25000:
+                    return 'MDT 3'
+                elif kg < 33000:
+                    return 'SEMI PESADO'
+                else:
+                    return 'PESADO'
+            except (ValueError, TypeError):
+                return 'SIN_CLASIFICAR'
+        df['clasificacion'] = df['kg_bruto'].apply(clasificar_por_peso)
+    else:
+        df['clasificacion'] = 'SIN_CLASIFICAR'
+    
+    if 'transmision' in df.columns:
+        df['caja'] = df['transmision']
+    else:
+        df['caja'] = 'SIN_DATO'
+    
+    df['modelo_flag'] = 'ok'
+    
+    print(f"    ✅ Clasificación: {df['clasificacion'].notna().sum()} registros")
+    print(f"    ✅ Caja: {df['caja'].notna().sum()} registros")
+    print(f"    ✅ modelo_flag: ok para todos")
+    
     print("  Parseando códigos adicionales...")
     def parse_row(desc):
         if pd.isna(desc): return {}
@@ -406,7 +651,9 @@ def parse_descripcion_vectorized(df):
         df.loc[mask,col] = parsed.apply(lambda x: x.get(col))
     return df
 
+# ====================================================================
 # ========== PROCESAMIENTO ==========
+# ====================================================================
 def process_file(src, out):
     print(f"\n{'='*60}\n  {src.name}\n{'='*60}")
     print("  Leyendo archivo con pandas...")
@@ -422,11 +669,42 @@ def process_file(src, out):
     print(f"  Registros originales: {total_original}")
     me = df['estado'].apply(es_estado_nuevo) if 'estado' in df.columns else pd.Series(True,index=df.index)
     mk = df['kilometraje'].apply(es_km_nuevo) if 'kilometraje' in df.columns else pd.Series(True,index=df.index)
-    mc = ~df['carroceria'].apply(es_carroceria_excluida)
+    
+    mc = df.apply(es_carroceria_excluida, axis=1)
+    mc = ~mc
+    
     print(f"  Excluidos por estado: {(~me).sum()}")
     print(f"  Excluidos por kilometraje: {(~mk).sum()}")
     print(f"  Excluidos por carrocería: {(~mc).sum()}")
     df_f = df[me & mk & mc].copy()
+    
+    print("  Eliminando duplicados de VIN/Chasis...")
+    if 'vin' in df_f.columns:
+        vin_dups = df_f[df_f['vin'].notna() & df_f['vin'].duplicated(keep=False)]
+        if len(vin_dups) > 0:
+            print(f"    {len(vin_dups)} VIN duplicados, manteniendo el primero...")
+            df_f = df_f.drop_duplicates(subset=['vin'], keep='first')
+        else:
+            print(f"    ✅ Sin VIN duplicados")
+    if 'chasis' in df_f.columns:
+        chasis_dups = df_f[df_f['chasis'].notna() & df_f['chasis'].duplicated(keep=False)]
+        if len(chasis_dups) > 0:
+            print(f"    {len(chasis_dups)} Chasis duplicados, manteniendo el primero...")
+            df_f = df_f.drop_duplicates(subset=['chasis'], keep='first')
+        else:
+            print(f"    ✅ Sin Chasis duplicados")
+    
+    # ============================================================
+    # ✅ AGREGAR CATEGORÍA WITHMORY
+    # ============================================================
+    print("  Agregando categoría WITHMORY...")
+    df_f['categoria_withmory'] = df_f.apply(clasificar_withmory, axis=1)
+    
+    conteo = df_f['categoria_withmory'].value_counts()
+    print(f"    Categorías:")
+    for cat, count in conteo.items():
+        print(f"      - {cat}: {count}")
+    
     tf = len(df_f)
     print(f"\n  RESULTADO FINAL: {tf} REGISTROS")
     if tf==0: return False
@@ -466,12 +744,15 @@ def process_file(src, out):
     for r in dataframe_to_rows(dfo, index=False, header=True): ws.append(r)
     if not rev.empty:
         ws2=wb.create_sheet("_revisar")
-        rc=['dua_dam','estado','kg_bruto','categoria_peso','carroceria','marca','submarca_sinotruk','modelo','tipo_importador_sinotruk','_descripcion']
+        rc=['dua_dam','estado','kg_bruto','categoria_peso','carroceria','marca','submarca_sinotruk','modelo','tipo_importador_sinotruk','_descripcion','categoria_withmory']
         for r in dataframe_to_rows(rev[[c for c in rc if c in rev.columns]], index=False, header=True): ws2.append(r)
     wb.save(out)
     print(f"  Escrito: {out}  ({tf} registros, {len(columns)} columnas)")
     return True
 
+# ====================================================================
+# ========== MAIN ==========
+# ====================================================================
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--inputs-dir", default=INPUTS_DIR)

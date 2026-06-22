@@ -1,62 +1,63 @@
-"""Reporte de evaluación: LLM normalizado vs parser determinístico (v1)."""
-from __future__ import annotations
+"""Reporte de calidad del pipeline"""
 
 import pandas as pd
 
-from .client import Stats
-
-# Precios deepseek-v4-flash (USD por 1M tokens), recalcular si cambian.
-PRICE_IN_MISS = 0.14
-PRICE_IN_HIT = 0.0028
-PRICE_OUT = 0.28
-
-
-def build(df: pd.DataFrame, stats: Stats) -> pd.DataFrame:
-    """df ya tiene columnas v1 (marca, modelo) + LLM (marca_norm, modelo_match, modelo_flag, *_norm)."""
-    filas = []
-
-    def pct(mask):
-        return round(100 * mask.mean(), 1) if len(df) else 0.0
-
-    filas.append(("filas_muestra", len(df)))
-
-    # Fill-rate de modelo: v1 vs LLM (ok exacto + alias curado + low)
-    resueltos = ["ok", "alias", "low"]
-    filas.append(("modelo_fill_v1_%", pct(df["modelo"].notna())))
-    filas.append(("modelo_fill_llm_%", pct(df["modelo_flag"].isin(resueltos))))
-
-    # Lift en el estrato sin_modelo
-    if "estrato" in df:
-        sm = df[df["estrato"] == "sin_modelo"]
-        if len(sm):
-            filas.append(("lift_modelo_en_sin_modelo_%",
-                          round(100 * sm["modelo_flag"].isin(resueltos).mean(), 1)))
-
-    # Acuerdo de marca (donde v1 tiene marca y LLM la dejó in_vocab)
-    comp = df[df["marca"].notna() & df["marca_norm"].notna()]
-    if len(comp):
-        ag = (comp["marca"].str.upper().str.strip() == comp["marca_norm"].str.upper().str.strip())
-        filas.append(("acuerdo_marca_%", round(100 * ag.mean(), 1)))
-    filas.append(("marca_fuera_vocab_%", pct(~df["marca_in_vocab"])))
-
-    # Distribución de flags de modelo
-    for flag, c in df["modelo_flag"].value_counts().items():
-        filas.append((f"modelo_flag::{flag}", int(c)))
-
-    # Validez de enums
-    for campo in ("traccion", "combustible", "clasificacion", "caja"):
-        filas.append((f"{campo}_fill_%", pct(df[f"{campo}_norm"].notna())))
-
-    # Costo / tokens
-    miss = max(stats.prompt_tokens - stats.cached_tokens, 0)
-    costo = (miss * PRICE_IN_MISS + stats.cached_tokens * PRICE_IN_HIT
-             + stats.completion_tokens * PRICE_OUT) / 1_000_000
-    filas += [
-        ("requests", stats.requests),
-        ("errores_batch", stats.errors),
-        ("prompt_tokens", stats.prompt_tokens),
-        ("cached_tokens", stats.cached_tokens),
-        ("completion_tokens", stats.completion_tokens),
-        ("costo_estimado_usd", round(costo, 4)),
+def build(df, stats=None):
+    """Construye el reporte de calidad"""
+    metricas = []
+    
+    # 1. Filas de muestra
+    metricas.append({"metrica": "filas_muestra", "valor": float(len(df))})
+    
+    # 2. Porcentaje de llenado de campos
+    campos = [
+        "modelo", "carroceria", "marca", "traccion", 
+        "combustible", "clasificacion", "caja"
     ]
-    return pd.DataFrame(filas, columns=["metrica", "valor"])
+    
+    for campo in campos:
+        if campo in df.columns:
+            pct = df[campo].notna().mean() * 100
+            metricas.append({"metrica": f"{campo}_fill_%", "valor": round(pct, 1)})
+    
+    # 3. Acuerdo con marca
+    if 'marca' in df.columns and 'marca_norm' in df.columns:
+        acuerdo = (df['marca'].str.upper() == df['marca_norm'].str.upper()).mean() * 100
+        metricas.append({"metrica": "acuerdo_marca_%", "valor": round(acuerdo, 1)})
+    
+    # 4. Marcas fuera de vocabulario
+    if 'marca_in_vocab' in df.columns:
+        fuera = (~df['marca_in_vocab']).mean() * 100
+        metricas.append({"metrica": "marca_fuera_vocab_%", "valor": round(fuera, 1)})
+    
+    # 5. ✅ CORREGIDO: modelo_flag de forma segura
+    if 'modelo_flag' in df.columns:
+        try:
+            modelo_flag_series = df['modelo_flag'].astype(str)
+            for flag, c in modelo_flag_series.value_counts().items():
+                metricas.append({"metrica": f"modelo_flag::{flag}", "valor": float(c)})
+        except Exception as e:
+            # Si falla, solo ponemos un error y seguimos
+            metricas.append({"metrica": "modelo_flag::error", "valor": 0.0})
+    else:
+        metricas.append({"metrica": "modelo_flag::sin_dato", "valor": float(len(df))})
+    
+    # 6. Estadísticas del cliente (LLM)
+    if stats:
+        if hasattr(stats, 'requests'):
+            metricas.append({"metrica": "requests", "valor": float(stats.requests)})
+        if hasattr(stats, 'errors'):
+            metricas.append({"metrica": "errores_batch", "valor": float(stats.errors)})
+        if hasattr(stats, 'prompt_tokens'):
+            metricas.append({"metrica": "prompt_tokens", "valor": float(stats.prompt_tokens)})
+        if hasattr(stats, 'cached_tokens'):
+            metricas.append({"metrica": "cached_tokens", "valor": float(stats.cached_tokens)})
+        if hasattr(stats, 'completion_tokens'):
+            metricas.append({"metrica": "completion_tokens", "valor": float(stats.completion_tokens)})
+        
+        # Costo estimado
+        if hasattr(stats, 'prompt_tokens') and hasattr(stats, 'completion_tokens'):
+            costo = (stats.prompt_tokens * 0.0000001 + stats.completion_tokens * 0.0000004)
+            metricas.append({"metrica": "costo_estimado_usd", "valor": round(costo, 6)})
+    
+    return pd.DataFrame(metricas)
