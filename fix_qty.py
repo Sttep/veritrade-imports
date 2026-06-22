@@ -1,0 +1,1 @@
+﻿import sys; c=open('scripts/extract_descripcion.py','r',encoding='utf-8').read(); c=c.replace('Kg Neto: kg_neto,', 'Kg Neto: kg_neto, Qty 1: qty_1, Und 1: und_1, Qty 2: qty_2, Und 2: und_2,'); open('scripts/extract_descripcion.py','w',encoding='utf-8').write(c); print('OK' if 'qty_1' in c else 'FALLA')
