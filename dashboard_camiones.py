@@ -264,6 +264,11 @@ def insights_ejecutivos(df_act, df_ant, total_act, total_ant):
 # ── CARGA ─────────────────────────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
 def cargar():
+    ruta_parquet = Path(__file__).parent / 'datos_camiones.parquet'
+    if ruta_parquet.exists():
+        df = pd.read_parquet(ruta_parquet)
+        return df, ruta_parquet.stat().st_mtime
+
     ruta = Path(__file__).parent / 'outputs'
     if not ruta.exists(): ruta = Path('.')
     archivos = sorted(ruta.glob('*_fase1.xlsx'))
