@@ -1,9 +1,12 @@
 # Datos de trabajo (xlsx) — ignorados por defecto para no publicar data privada.
 *.xlsx
-# ...salvo los archivos de ejemplo nombrados explícitamente:
-!inputs/veritrade_PE_I_8704229000.xlsx
-!outputs/veritrade_PE_I_8704229000_estructurado.xlsx
-!outputs/veritrade_PE_I_8704229000_normalizado.xlsx
+# Bronze y Silver: datos crudos y estructurados (privados)
+data/bronze/*.xlsx
+data/silver/*.xlsx
+# Parquets Gold sí se versionan (servidos por Streamlit Cloud)
+!data/gold/*.parquet
+
+# Archivos de ejemplo nombrados explícitamente
 !data/ejemplo.xlsx
 
 __pycache__/
@@ -12,7 +15,9 @@ __pycache__/
 CLAUDE.md
 .claude/
 
-# Web service runtime
+# Web service runtime (legacy)
+inputs/
+outputs/
 jobs/
 backend.db
 frontend/node_modules/
