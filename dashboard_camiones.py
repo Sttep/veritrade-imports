@@ -267,23 +267,22 @@ def cargar():
     ruta_parquet = Path(__file__).parent / 'datos_camiones.parquet'
     if ruta_parquet.exists():
         df = pd.read_parquet(ruta_parquet)
-        return df, ruta_parquet.stat().st_mtime
+        ultima = ruta_parquet.stat().st_mtime
+    else:
+        ruta = Path(__file__).parent / 'outputs'
+        if not ruta.exists(): ruta = Path('.')
+        archivos = sorted(ruta.glob('*_fase1.xlsx'))
+        if not archivos: return pd.DataFrame(), None
 
-    ruta = Path(__file__).parent / 'outputs'
-    if not ruta.exists(): ruta = Path('.')
-    archivos = sorted(ruta.glob('*_fase1.xlsx'))
-    if not archivos: return pd.DataFrame(), None
-
-    frames, ultima = [], 0
-    for f in archivos:
-        try:
-            d = pd.read_excel(f, sheet_name='estructurado', dtype=str)
-            frames.append(d)
-            ultima = max(ultima, f.stat().st_mtime)
-        except: pass
-    if not frames: return pd.DataFrame(), None
-
-    df = pd.concat(frames, ignore_index=True)
+        frames, ultima = [], 0
+        for f in archivos:
+            try:
+                d = pd.read_excel(f, sheet_name='estructurado', dtype=str)
+                frames.append(d)
+                ultima = max(ultima, f.stat().st_mtime)
+            except: pass
+        if not frames: return pd.DataFrame(), None
+        df = pd.concat(frames, ignore_index=True)
     if 'dua_dam' in df.columns:
         df['_k'] = df.apply(lambda r: f"{r.get('dua_dam','')}|{r.get('vin') or r.get('chasis') or ''}", axis=1)
         df = df.drop_duplicates('_k').drop(columns='_k')
