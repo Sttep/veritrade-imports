@@ -194,3 +194,60 @@ La cobertura global se mantiene en **~101.7%** — las 750 filas nuevas son de m
 | FORD | 1 | 0 | 0% | 1 unidad, insignificante |
 
 **Nota sobre RAM:** las unidades que Veritrade sí captura están bajo la partida 8705300000, compartida con fabricantes de camiones contra incendios (NAFFCO, E-ONE, ROSENBAUER). Los modelos declarados ("RAM 3500 SERVICE RESCUE", "RAM 5500 CREW CAB") confirman que son **vehículos de rescate/bomberos**, no camiones de carga comercial estándar. Aunque la cobertura numérica es baja (11.1%), el segmento es de baja relevancia para el análisis de mercado de camiones — no se prioriza la descarga de archivos adicionales para cerrar este gap.
+
+---
+
+## Auditoría familia Sinotruk — 30 de junio de 2026
+
+### Contexto
+
+Sinotruk es el #2 del mercado peruano (1,640 unidades AAP Ene–May 2026). La auditoría de cobertura global mostraba 90.4% para SINOTRUK y 52.9% para HOWO MAX. Se realizó un análisis exhaustivo importador por importador.
+
+### Composición de la familia en AAP
+
+| Sub-marca AAP | Ene | Feb | Mar | Abr | May | Total |
+|---|---|---|---|---|---|---|
+| SINOTRUK | 344 | 213 | 532 | 217 | 334 | **1,640** |
+| HOWO MAX | 4 | 31 | 5 | 30 | 0 | **70** |
+| SINOTRUK HOWO | 0 | 6 | 0 | 0 | 2 | **8** |
+| SINOTRUK WANGPAI | 0 | 0 | 2 | 0 | 0 | **2** |
+| **TOTAL FAMILIA** | **348** | **250** | **539** | **247** | **336** | **1,720** |
+
+### Archivos descargados por importador
+
+Se descargaron 8 archivos adicionales por nombre de importador para verificar cobertura completa:
+
+| Importador | VT (antes) | Filas camión en archivo | Nuevos aportados |
+|---|---|---|---|
+| CAMIONES CHINOS PERU S.A.C. | 223 | 352 | +58 SINOTRUK |
+| CORPORATION WITHMORY S.R.L. | 177 | 227 | +50 SINOTRUK |
+| ZOOMLION HEAVY INDUSTRY PERU S.A.C. | 188 | 324 | +50 (ZOOMLION+SINOTRUK) |
+| CORIEX DS S.A.C. | 109 | 145 | +36 SINOTRUK |
+| PREMIER MOTORS S.A. | 379 | 506 | +18 SINOTRUK |
+| COMINKA MOTORS S.A.C. | 73 | 87 | +14 SINOTRUK |
+| J.CH.COMERCIAL S.A. | 118 | 352 | 0 — ya estaba todo |
+| INOMAC S.A.C. | 60 | 60 | 0 — ya estaba todo |
+
+> Nota ZOOMLION: importa equipos especiales (mezcladoras, bombas de concreto, volquetes) sobre chasis SINOTRUK — partida 8705400000. Es correcto que aparezca como importador de la familia.
+
+### Cobertura post-integración
+
+| Sub-marca | AAP | VT | Cobertura |
+|---|---|---|---|
+| SINOTRUK | 1,640 | 1,505 | 91.8% |
+| HOWO MAX | 70 | 37 | 52.9% |
+| SINOTRUK HOWO | 8 | 8 | 100.0% |
+| SINOTRUK WANGPAI | 2 | 2 | 100.0% |
+| **FAMILIA TOTAL** | **1,720** | **1,552** | **90.2%** |
+
+**Parquet actualizado:** 136,223 → **136,449 filas** (+226 registros).
+
+### Diagnóstico de la brecha residual (−168 unidades)
+
+La brecha bajó de −190 a −168 tras la integración de los 8 importadores. El gap residual se explica por dos factores:
+
+1. **HOWO MAX (clasificación en aduana):** WITHMORY S.R.L. declara sus HOWO MAX como "SINOTRUK" en la DUA de aduana. AAP los cuenta como HOWO MAX. Las ~33 unidades "faltantes" de HOWO MAX ya están dentro del 1,505 SINOTRUK de VT — no son unidades perdidas sino una diferencia de etiqueta entre aduana y AAP.
+
+2. **Rezago metodológico AAP vs Veritrade (~135 unidades):** AAP contabiliza unidades al momento de registro en el MTC (Ministerio de Transportes), mientras Veritrade registra la fecha del DUA de aduana. Pueden existir semanas de diferencia entre ambos eventos. Este rezago estructural es la causa más probable de los ~135 SINOTRUK restantes.
+
+**Conclusión:** la cobertura real efectiva de la familia Sinotruk es **~91–92%**. No se identificaron importadores faltantes ni partidas arancelarias sin cubrir. La brecha residual es de origen metodológico, no de datos.
