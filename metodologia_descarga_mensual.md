@@ -112,32 +112,25 @@ python pipeline/run.py --silver-only
 
 ## 5. Validación de cobertura
 
-Después de procesar, verificar con el script de auditoría:
+Después de procesar, ejecutar el script de validación inteligente:
 
-```python
-import pandas as pd
-from pathlib import Path
+```bash
+python scripts/validar_cobertura.py
+```
 
-ROOT = Path(".")
-aap = pd.read_parquet(ROOT / "data/gold/aap_camiones.parquet")
-vt  = pd.read_parquet(ROOT / "data/gold/camiones.parquet")
+El script hace automáticamente:
+1. Calcula cobertura por marca para el período del último reporte AAP
+2. Detecta marcas con brecha < 88%
+3. **Deriva automáticamente** los importadores conocidos para cada marca desde el parquet actual
+4. Identifica si la brecha es por **importador incompleto** (ceros sospechosos en meses intermedios) o por **partida desconocida** (marca sin datos en VT)
+5. Genera el checklist de descargas a realizar
 
-# Filtrar al período del nuevo reporte AAP
-MES_NUEVO = 6   # <-- cambiar cada mes
-ANIO = 2026     # <-- cambiar si corresponde
+> No es necesario mantener la lista de importadores manualmente — se actualiza sola con cada integración de datos.
 
-aap_per = aap[(aap["año"] == ANIO) & (aap["mes_num"] <= MES_NUEVO)]
-vt["_dt"] = pd.to_datetime(vt["fecha_dua"], errors="coerce")
-vt_per = vt[(vt["_dt"].dt.year == ANIO) & (vt["_dt"].dt.month <= MES_NUEVO)]
-
-aap_tot = aap_per.groupby("marca_norm")["unidades"].sum()
-vt_tot  = vt_per.groupby("marca_normalizada").size()
-
-merged = pd.DataFrame({"aap": aap_tot, "vt": vt_tot}).fillna(0).astype(int)
-merged["cob"] = (merged["vt"] / merged["aap"] * 100).round(1)
-merged = merged[merged["aap"] > 5].sort_values("aap", ascending=False)
-print(merged.to_string())
-print(f"\nGlobal: {merged['vt'].sum()} / {merged['aap'].sum()} = {merged['vt'].sum()/merged['aap'].sum()*100:.1f}%")
+Opciones disponibles:
+```bash
+python scripts/validar_cobertura.py --mes 6 --anio 2026   # período específico
+python scripts/validar_cobertura.py --umbral 92            # umbral más estricto
 ```
 
 ### Umbrales de alerta
