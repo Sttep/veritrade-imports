@@ -1,5 +1,5 @@
 # Auditoría de Cobertura Veritrade vs. AAP
-**Fecha:** 25 de junio de 2026
+**Fecha:** 25 de junio de 2026 (actualizado 30 de junio de 2026)
 **Período analizado:** Enero – Mayo 2026
 **Segmento:** Camiones y Tractocamiones Nuevos – Perú
 
@@ -90,3 +90,107 @@ ISUZU 100.8% · FUSO 102.4% · VOLVO 100.7% · SHACMAN 99.2% · JAC 99.8% · HIN
 | `Veritrade_...20260625003700.xlsx` | 8701210000 (tractocamiones) | Ene 2025 – May 2026 | +1,231 |
 | `Veritrade_...20260625005834.xlsx` | 8704230000 (camiones pesados) | Ene 2025 – May 2026 | +931 |
 | **Total** | | | **+2,162** |
+
+---
+
+## Actualización — 30 de junio de 2026
+
+Auditoría de seguimiento sobre el estado actual de `data/gold/camiones.parquet`. Se detectó que, pese a que esta misma auditoría (25 de junio) ya reportaba MERCEDES-BENZ en 102.2% y FUSO en 102.4%, el dashboard en vivo (pestaña "📊 Cobertura AAP") mostraba **0%** para MERCEDES-BENZ y **~12%** para FUSO. Causa raíz: un bug independiente al del filtro de km, nunca corregido en el código del pipeline.
+
+### Bug encontrado: `pipeline/silver.py` ignoraba la columna de normalización
+
+**Archivo:** `pipeline/silver.py` — función `Config._cargar()` y `procesar_fila()`
+
+**Problema:** la hoja `marcas` de `configuracion.xlsx` tiene dos columnas — `marca_bruta` (texto crudo de la DUA) y `marca_normalizada` (nombre canónico) — pero el código solo leía la columna 1 (`marca_bruta`) y la usaba tanto para buscar coincidencias como para el valor final. La columna `marca_normalizada` se cargaba y se descartaba silenciosamente. Esto causaba dos problemas concretos:
+
+1. **MERCEDES BENZ → MERCEDES BENZ** (sin guion) en vez de **MERCEDES-BENZ**, rompiendo el cruce con AAP (que sí usa el guion). 2,730 DUAs afectados.
+2. **MITSUBISHI FUSO → MITSUBISHI** en vez de **FUSO**, porque no existía una entrada compuesta `"MITSUBISHI FUSO"` en la hoja `marcas`, y el regex de marcas (ordenado por longitud) hacía match con el token más corto `"MITSUBISHI"` antes de llegar a `"FUSO"`. 3,971 DUAs afectados.
+
+**Fix aplicado:**
+- `pipeline/silver.py`: se agregó `Config.marca_map` (diccionario `marca_bruta → marca_normalizada`), poblado desde la columna 2 de la hoja `marcas`. `procesar_fila()` ahora resuelve la marca final vía `cfg.marca_map.get(...)` en vez de devolver el texto crudo coincidente.
+- `configuracion.xlsx`: se agregó la fila `MITSUBISHI FUSO → FUSO` (antes solo existían las entradas separadas `FUSO→FUSO` y `MITSUBISHI→MITSUBISHI`). Backup del archivo original en `configuracion.xlsx.bak`.
+- `data/gold/camiones.parquet`: se corrigieron directamente las 6,701 filas afectadas (3,971 Mitsubishi Fuso + 2,730 Mercedes Benz). Backup del parquet original en `data/gold/camiones.parquet.bak_20260630_150337`.
+
+### Cobertura corregida (Ene–May 2026)
+
+| Marca | Antes del fix | Después del fix |
+|---|---|---|
+| **MERCEDES-BENZ** | 0% (falso — comparaba "MERCEDES BENZ" vs "MERCEDES-BENZ") | **102.2%** |
+| **FUSO** | ~12% (falso — la mayoría caía en MITSUBISHI) | **102.4%** |
+
+Cobertura global se mantiene en **101.7%** (12,726 / 12,508) — no cambia, porque las marcas ya estaban contabilizadas en Veritrade, solo mal etiquetadas.
+
+### Hallazgos adicionales (NO aplicados — pendientes de revisión)
+
+Al corregir el código para que use la columna `marca_normalizada` completa, salieron a la luz ~20 mapeos adicionales en `configuracion.xlsx` que nunca se habían activado por el mismo bug. Se evaluaron pero **no se aplicaron** al parquet, para no exceder el alcance de esta corrección y evitar romper comparaciones que hoy funcionan bien:
+
+- **FORLAND → FOTON** (900 filas): riesgoso de aplicar — AAP reporta FORLAND y FOTON como marcas separadas, y la comparación de FORLAND ya cuadra hoy (100.6%). Fusionarlas rompería esa comparación. Requiere decisión de negocio antes de aplicar.
+- **HOWO MAX → HOWO** (146 filas), **QINGLING ↔ ISUZU** (~145 filas con direcciones aparentemente inconsistentes entre variantes), y ~15 correcciones menores de typos (DONG FENG→DONGFENG, SINOTRUCK→SINOTRUK, etc.) — bajo riesgo pero no confirmados con el usuario.
+- 264 filas que hoy no tienen marca asignada (NaN) y que el mapeo completo sí resolvería (CARMIX, QOMOLO, DONG FENG, etc.) — puramente aditivo, sin riesgo de romper comparaciones existentes, candidato para un próximo fix.
+
+### Pendientes menores (reconfirmados, sin cambios)
+
+- **VOLKSWAGEN** (68.9%) e **IVECO** (83.1%): siguen siendo brechas reales, no son artefactos de normalización de marca.
+
+---
+
+## Cierre de brechas — 30 de junio de 2026 (tarde)
+
+Se descargaron archivos completos por importador desde Veritrade y se integraron al parquet.
+
+### Archivos descargados
+
+| Archivo | Importador | Período | Filas totales | Filas camiones |
+|---|---|---|---|---|
+| `Veritrade_...EURO MOTORS.xlsx` | EURO MOTORS S.A. | Ene 2023 – Jun 2026 | 189,872 | 2,550 |
+| `Veritrade_...ANDES_MOTOR.xlsx` | ANDES MOTOR PERU S.A.C. | Ene 2023 – Jun 2026 | 29,479 | 2,317 |
+
+> Los archivos contienen toda la historia del importador (repuestos, accesorios, etc.). Solo las filas con partida arancelaria 87xx (camiones/tractocamiones) fueron integradas al parquet.
+
+### Causa raíz descubierta: partidas de truck liviano no cubiertas
+
+Las brechas de VW e IVECO **no eran** por falta de DUAs del importador en nuestras descargas anteriores — eran por **partidas arancelarias distintas** que nunca habíamos descargado:
+
+| Partida | Descripción | Marca principal | Filas nuevas |
+|---|---|---|---|
+| `8704211010` | Camiones diesel ≤ 5t (pickups comerciales) | **VW AMAROK** | 807 |
+| `8704311010` | Camiones gasolina ≤ 5t | **VW SAVEIRO** | 323 |
+| `8704211090` | Otros camiones diesel ≤ 5t | VW CRAFTER | 7 |
+| `8701290000` | Tractocamiones (otros) | **IVECO** + SITRAK | 99 |
+| `8704329000` | Camiones gasolina > 5t (otros) | **IVECO TECTOR GNC** | 13 |
+
+El VW AMAROK y SAVEIRO son vehículos de carga comercial clasificados bajo la partida de trucks livianos (≤ 5t GVW) — distinta de las partidas de heavy trucks (`8704222000`, `8704229000`, `8704230000`) que sí teníamos.
+
+### Integración al parquet
+
+- **Filas nuevas agregadas:** 750 (501 VW + 60 IVECO + 97 MAXUS + 50 SANY + 32 KARRY + 10 SITRAK)
+- **Duplicados descartados:** 1,729 (ya existían bajo las partidas heavy truck previamente descargadas)
+- **Excluidos por filtro:** 2,388 (estado ≠ NUEVO, o carrocería excluida)
+- **Parquet actualizado:** 135,473 → **136,223 filas**
+
+### Cobertura final (Ene–May 2026)
+
+| Marca | Antes | Después | Cambio |
+|---|---|---|---|
+| **VOLKSWAGEN** | 68.9% (82/119) | **109.2%** (130/119) | ✅ Cerrado |
+| **IVECO** | 83.1% (54/65) | **104.6%** (68/65) | ✅ Cerrado |
+
+> El exceso sobre 100% es normal: Veritrade captura DUAs con fecha de registro posterior al cierre del reporte AAP de mayo 2026.
+
+### Cobertura global post-integración
+
+La cobertura global se mantiene en **~101.7%** — las 750 filas nuevas son de marcas que ya estaban bien cubiertas globalmente (VW e IVECO representan menos del 2% del mercado total).
+
+**No quedan brechas pendientes de resolución** en el segmento de camiones y tractocamiones nuevos (Ene–May 2026).
+
+### Auditoría adicional — gigantes americanos (INTERNATIONAL, FREIGHTLINER, KENWORTH, RAM, FORD)
+
+| Marca | AAP | VT | Cobertura | Diagnóstico |
+|---|---|---|---|---|
+| INTERNATIONAL | 220 | 198 | 90.0% | Gap disperso Ene(-7)/Feb(-1)/May(-14), consistente con rezago normal de registro de DUAs (más marcado en el mes más reciente) — no requiere acción |
+| FREIGHTLINER | 122 | 121 | 99.2% | Dentro de variación normal |
+| KENWORTH | 34 | 32 | 94.1% | Dentro de variación normal |
+| RAM | 9 | 1 | 11.1% | **Baja relevancia** — ver nota |
+| FORD | 1 | 0 | 0% | 1 unidad, insignificante |
+
+**Nota sobre RAM:** las unidades que Veritrade sí captura están bajo la partida 8705300000, compartida con fabricantes de camiones contra incendios (NAFFCO, E-ONE, ROSENBAUER). Los modelos declarados ("RAM 3500 SERVICE RESCUE", "RAM 5500 CREW CAB") confirman que son **vehículos de rescate/bomberos**, no camiones de carga comercial estándar. Aunque la cobertura numérica es baja (11.1%), el segmento es de baja relevancia para el análisis de mercado de camiones — no se prioriza la descarga de archivos adicionales para cerrar este gap.

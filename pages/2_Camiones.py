@@ -999,19 +999,207 @@ with tab3:
                          (df_actual['submarca_sinotruk'].str.strip()!=""))
     df_sin = df_actual[m_sin]
 
+    # Mismo filtro para período anterior
+    m_sin_ant = df_anterior[COL_MARCA].astype(str).str.upper().str.contains("|".join(SINOTRUK_KW), na=False)
+    if 'submarca_sinotruk' in df_anterior.columns:
+        m_sin_ant = m_sin_ant | (df_anterior['submarca_sinotruk'].notna() &
+                                 (df_anterior['submarca_sinotruk'].str.strip()!=""))
+    df_sin_ant = df_anterior[m_sin_ant]
+
     if df_sin.empty:
         st.warning(f"No hay registros {MARCA_PROPIA} en el período seleccionado.")
     else:
-        st.markdown(f"## 🟡 Familia {MARCA_PROPIA}")
-        c1,c2,c3,c4 = st.columns(4)
-        c1.metric("📦 Unidades", f"{len(df_sin):,}")
-        c2.metric("📊 Market Share", f"{len(df_sin)/total_act*100:.1f}%")
-        c3.metric("💰 FOB Prom.", f"US$ {df_sin[COL_FOB].mean():,.0f}" if COL_FOB else "N/A")
-        w_n = len(df_sin[df_sin['grupo_importador'].str.contains('WITHMORY',na=False)]) if 'grupo_importador' in df_sin.columns else 0
-        c4.metric("🏢 Withmory", f"{w_n:,} uds")
+        # ── Calcular métricas clave ───────────────────────────────────────────
+        n_sin      = len(df_sin)
+        n_sin_ant  = len(df_sin_ant)
+        ms_act     = n_sin / total_act * 100 if total_act else 0
+        ms_ant     = n_sin_ant / total_ant * 100 if total_ant else 0
+        delta_ms   = ms_act - ms_ant
+        fob_sin    = df_sin[COL_FOB].mean() if COL_FOB and COL_FOB in df_sin.columns and df_sin[COL_FOB].sum() > 0 else None
+        fob_mkt    = df_actual[COL_FOB].mean() if COL_FOB and COL_FOB in df_actual.columns and df_actual[COL_FOB].sum() > 0 else None
+        w_n        = len(df_sin[df_sin['grupo_importador'].str.contains('WITHMORY', na=False)]) if 'grupo_importador' in df_sin.columns else 0
+        w_share    = w_n / n_sin * 100 if n_sin else 0
+
+        # ── Objetivo configurable ─────────────────────────────────────────────
+        col_hdr, col_obj = st.columns([4, 1])
+        with col_hdr:
+            st.markdown(f"## 🟡 Familia {MARCA_PROPIA}")
+        with col_obj:
+            objetivo_ms = st.number_input("Objetivo MS%", min_value=1.0, max_value=100.0,
+                                          value=25.0, step=0.5, key="obj_ms",
+                                          label_visibility="visible")
+
+        # ── Fila KPIs ─────────────────────────────────────────────────────────
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("📦 Unidades", f"{n_sin:,}",
+                  delta=f"{n_sin - n_sin_ant:+,} vs ant.")
+        c2.metric("📊 Market Share", f"{ms_act:.1f}%",
+                  delta=f"{delta_ms:+.1f} pp vs ant.",
+                  delta_color="normal")
+        c3.metric("🎯 vs Objetivo", f"{ms_act - objetivo_ms:+.1f} pp",
+                  delta=f"objetivo: {objetivo_ms:.0f}%",
+                  delta_color="off")
+        if fob_sin:
+            delta_fob = f"US$ {fob_sin - fob_mkt:+,.0f} vs mercado" if fob_mkt else None
+            c4.metric("💰 FOB Prom.", f"US$ {fob_sin:,.0f}", delta=delta_fob,
+                      delta_color="off")
+        else:
+            c4.metric("💰 FOB Prom.", "N/A")
+        c5.metric("🏢 Withmory", f"{w_n:,}",
+                  delta=f"{w_share:.0f}% de familia")
+
         st.divider()
 
-        cl,cr = st.columns(2)
+        # ── Gauge + Cuota mensual ─────────────────────────────────────────────
+        col_gauge, col_share_evo = st.columns([1, 2])
+
+        with col_gauge:
+            gauge_color = ("#4CAF50" if ms_act >= objetivo_ms
+                           else "#FFA500" if ms_act >= objetivo_ms * 0.8
+                           else "#FF5252")
+            fig_gauge = go.Figure(go.Indicator(
+                mode="gauge+number+delta",
+                value=round(ms_act, 1),
+                number=dict(suffix="%", font=dict(size=32, color=gauge_color)),
+                delta=dict(reference=objetivo_ms, suffix=" pp vs obj.",
+                           increasing=dict(color="#4CAF50"),
+                           decreasing=dict(color="#FF5252")),
+                gauge=dict(
+                    axis=dict(range=[0, max(ms_act * 1.5, objetivo_ms * 1.3)],
+                              ticksuffix="%", tickcolor="#666"),
+                    bar=dict(color=gauge_color, thickness=0.25),
+                    bgcolor="white",
+                    borderwidth=1, bordercolor="#DDD",
+                    steps=[
+                        dict(range=[0, objetivo_ms * 0.8], color="#FFEBEE"),
+                        dict(range=[objetivo_ms * 0.8, objetivo_ms], color="#FFF8E1"),
+                        dict(range=[objetivo_ms, max(ms_act * 1.5, objetivo_ms * 1.3)], color="#E8F5E9"),
+                    ],
+                    threshold=dict(line=dict(color="#1A1A1A", width=3),
+                                   thickness=0.85, value=objetivo_ms),
+                ),
+                title=dict(text=f"Market Share<br><span style='font-size:0.8em;color:#888'>Objetivo: {objetivo_ms:.0f}%</span>",
+                           font=dict(size=14)),
+            ))
+            fig_gauge.update_layout(height=260, margin=dict(l=20, r=20, t=40, b=10),
+                                    paper_bgcolor="white", font=dict(color="#333"))
+            st.plotly_chart(fig_gauge, use_container_width=True)
+
+        with col_share_evo:
+            # Cuota mensual % en el dataset completo — últimos 24 meses
+            df_full_ms = df.copy()
+            df_full_ms = df_full_ms[df_full_ms['fecha'].notna()].copy()
+            df_full_ms['_sin'] = df_full_ms[COL_MARCA].astype(str).str.upper().str.contains(
+                "|".join(SINOTRUK_KW), na=False)
+            df_full_ms['_ym'] = df_full_ms['año'].astype(str) + '-' + df_full_ms['mes'].astype(str).str.zfill(2)
+            ms_evo = (df_full_ms.groupby(['año','mes','mes_nombre','_ym'])
+                      .agg(total=('_sin','count'), sin=('_sin','sum'))
+                      .reset_index())
+            ms_evo['share%'] = (ms_evo['sin'] / ms_evo['total'] * 100).round(1)
+            ms_evo = ms_evo[ms_evo['total'] >= 5].sort_values(['año','mes']).tail(24)
+            ms_evo['periodo'] = ms_evo['mes_nombre'] + " " + ms_evo['año'].astype(str)
+
+            fig_ms_evo = go.Figure()
+            fig_ms_evo.add_hline(y=objetivo_ms, line_dash="dot", line_color="#FF5252",
+                                 annotation_text=f"Obj. {objetivo_ms:.0f}%",
+                                 annotation_position="top right",
+                                 annotation_font_color="#FF5252")
+            fig_ms_evo.add_trace(go.Scatter(
+                x=ms_evo['periodo'], y=ms_evo['share%'],
+                mode='lines+markers',
+                line=dict(color=COLOR_SINOTRUK, width=3),
+                marker=dict(size=7, color=COLOR_SINOTRUK, line=dict(color='#333', width=1)),
+                fill='tozeroy', fillcolor='rgba(246,228,33,0.15)',
+                name='Sinotruk MS%',
+                hovertemplate='%{x}<br>Share: <b>%{y:.1f}%</b><extra></extra>',
+            ))
+            fig_ms_evo.update_layout(
+                title="Evolución mensual de market share (últimos 24 meses)",
+                plot_bgcolor='white', paper_bgcolor='white',
+                height=260, margin=dict(l=10, r=10, t=40, b=10),
+                yaxis=dict(ticksuffix="%", gridcolor='#F0F0F0', range=[0, None]),
+                xaxis=dict(tickangle=-35, gridcolor='#F0F0F0'),
+                showlegend=False,
+            )
+            st.plotly_chart(fig_ms_evo, use_container_width=True)
+
+        st.divider()
+
+        # ── Cuota vs Top Competidores — barras mensuales apiladas ─────────────
+        st.markdown("#### 📈 Cuota mensual vs Top Competidores")
+        top_marcas_comp = (df_actual[COL_MARCA].value_counts().head(6).index.tolist())
+        if MARCA_PROPIA not in top_marcas_comp:
+            top_marcas_comp = [MARCA_PROPIA] + top_marcas_comp[:5]
+
+        df_comp_ms = df.copy()
+        df_comp_ms = df_comp_ms[df_comp_ms['fecha'].notna()]
+        df_comp_ms['_marca_grp'] = df_comp_ms[COL_MARCA].astype(str).apply(
+            lambda m: MARCA_PROPIA if any(k in m.upper() for k in SINOTRUK_KW)
+            else m.upper().strip() if m.upper().strip() in top_marcas_comp
+            else 'OTROS')
+        df_comp_ms = df_comp_ms[df_comp_ms['_marca_grp'] != 'OTROS']
+        evo_comp = (df_comp_ms.groupby(['año','mes','mes_nombre','_marca_grp'])
+                   .size().reset_index(name='Uds'))
+        evo_comp = evo_comp.sort_values(['año','mes']).tail(24 * len(top_marcas_comp))
+        evo_comp['periodo'] = evo_comp['mes_nombre'] + " " + evo_comp['año'].astype(str)
+
+        color_comp = {MARCA_PROPIA: COLOR_SINOTRUK}
+        pal_rest = [c for c in COLOR_PALETTE if c != COLOR_SINOTRUK]
+        for i, m in enumerate([m for m in top_marcas_comp if m != MARCA_PROPIA]):
+            color_comp[m] = pal_rest[i % len(pal_rest)]
+
+        fig_comp_evo = px.line(evo_comp, x='periodo', y='Uds', color='_marca_grp',
+                               markers=True, color_discrete_map=color_comp,
+                               title="Unidades mensuales — Sinotruk vs competencia")
+        fig_comp_evo.update_traces(selector=dict(name=MARCA_PROPIA),
+                                   line=dict(width=4), marker=dict(size=9))
+        fig_comp_evo.update_layout(plot_bgcolor='white', height=320,
+                                   xaxis_tickangle=-35,
+                                   legend=dict(orientation="h", y=1.08, title_text=""),
+                                   yaxis=dict(gridcolor='#F0F0F0'))
+        st.plotly_chart(fig_comp_evo, use_container_width=True)
+
+        st.divider()
+
+        # ── Precio FOB comparativo ────────────────────────────────────────────
+        if COL_FOB and COL_FOB in df_actual.columns and df_actual[COL_FOB].sum() > 0:
+            st.markdown("#### 💰 Precio FOB Promedio vs Competencia")
+            fob_comp = (df_actual[df_actual[COL_FOB] > 0]
+                        .groupby(COL_MARCA)[COL_FOB]
+                        .agg(fob_prom='mean', n='count')
+                        .reset_index()
+                        .query("n >= 5")
+                        .sort_values('fob_prom', ascending=False)
+                        .head(12))
+            fob_comp['es_sin'] = fob_comp[COL_MARCA].astype(str).str.upper().str.contains(
+                "|".join(SINOTRUK_KW), na=False)
+            fob_comp['color'] = fob_comp['es_sin'].map({True: COLOR_SINOTRUK, False: '#4A90E2'})
+            fob_comp['label'] = fob_comp['fob_prom'].apply(lambda x: f"US$ {x:,.0f}")
+
+            fig_fob = go.Figure(go.Bar(
+                y=fob_comp[COL_MARCA],
+                x=fob_comp['fob_prom'],
+                orientation='h',
+                text=fob_comp['label'],
+                textposition='outside',
+                marker_color=fob_comp['color'].tolist(),
+            ))
+            if fob_mkt:
+                fig_fob.add_vline(x=fob_mkt, line_dash="dot", line_color="#888",
+                                  annotation_text=f"Prom. mercado US$ {fob_mkt:,.0f}",
+                                  annotation_position="top right")
+            fig_fob.update_layout(
+                plot_bgcolor='white', height=max(300, len(fob_comp) * 32),
+                xaxis=dict(tickprefix="US$ ", tickformat=",.0f", gridcolor='#F0F0F0'),
+                yaxis=dict(autorange="reversed"),
+                margin=dict(l=10, r=120, t=20, b=10),
+                showlegend=False,
+            )
+            st.plotly_chart(fig_fob, use_container_width=True)
+            st.divider()
+
+        # ── Sub-marcas + Importadores ─────────────────────────────────────────
+        cl, cr = st.columns(2)
         with cl:
             sub = df_sin['submarca_sinotruk'].fillna(df_sin[COL_MARCA]) \
                   if 'submarca_sinotruk' in df_sin.columns else df_sin[COL_MARCA]
@@ -1036,11 +1224,11 @@ with tab3:
         st.divider()
         st.markdown("#### ★ Marca Declarada en Aduana por Importador")
         st.caption("SINOTRUK = Withmory oficial · HOWO = Andes Motor (mismo fabricante, distinto posicionamiento)")
-        cross = (df_sin.groupby(['grupo_importador',COL_MARCA])
+        cross = (df_sin.groupby(['grupo_importador', COL_MARCA])
                  .size().reset_index(name='unidades')
                  .sort_values(['grupo_importador','unidades'], ascending=[True,False]))
         cross['% imp'] = cross.groupby('grupo_importador')['unidades'].transform(
-            lambda x: (x/x.sum()*100).round(1))
+            lambda x: (x / x.sum() * 100).round(1))
         st.dataframe(cross.rename(columns={'grupo_importador':'Importador',
                                            COL_MARCA:'Marca Declarada','unidades':'Uds'}),
                      hide_index=True, use_container_width=True)

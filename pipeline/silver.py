@@ -133,6 +133,7 @@ class Config:
             self._set_fallbacks()
             return
         self.marcas_set:       set[str]        = set()
+        self.marca_map:        dict[str,str]    = {}
         self.brand_re:         re.Pattern       = re.compile(r"(?!)")
         self.modelos:          dict[str,set]    = {}
         self.carroceria_map:   dict[str,str]    = {}
@@ -153,8 +154,18 @@ class Config:
         xl = pd.ExcelFile(path)
 
         if "marcas" in xl.sheet_names:
-            df = xl.parse("marcas", dtype=str).iloc[:, 0].dropna()
-            self.marcas_set = set(df.str.upper().str.strip())
+            df = xl.parse("marcas", dtype=str)
+            cols = df.columns.tolist()
+            col_bruta = cols[0]
+            col_norm  = cols[1] if len(cols) > 1 else cols[0]
+            df = df.dropna(subset=[col_bruta])
+            for _, row in df.iterrows():
+                bruta = str(row[col_bruta]).upper().strip()
+                norm_val = row[col_norm]
+                norm  = str(norm_val).upper().strip() if pd.notna(norm_val) else ""
+                if bruta:
+                    self.marca_map[bruta] = norm or bruta
+            self.marcas_set = set(self.marca_map.keys())
             brands = sorted(self.marcas_set, key=len, reverse=True)
             self.brand_re = re.compile(
                 r"\b(" + "|".join(re.escape(b) for b in brands) + r")\b", re.I
@@ -200,6 +211,7 @@ class Config:
 
     def _set_fallbacks(self):
         self.marcas_set      = set()
+        self.marca_map       = {}
         self.brand_re        = re.compile(r"(?!)")
         self.modelos         = {}
         self.carroceria_map  = {}
@@ -498,10 +510,12 @@ def procesar_fila(row: pd.Series, cfg: Config) -> dict:
     if marca_declarada:
         mk_up = str(marca_declarada).upper().strip()
         if mk_up in cfg.marcas_set:
-            marca_normalizada = mk_up
+            marca_normalizada = cfg.marca_map.get(mk_up, mk_up)
         else:
             m = cfg.brand_re.search(mk_up)
-            marca_normalizada = m.group(0).upper() if m else None
+            if m:
+                matched = m.group(0).upper()
+                marca_normalizada = cfg.marca_map.get(matched, matched)
 
     modelo = extraido.get("modelo") or posicional.get("_modelo_pos")
 
