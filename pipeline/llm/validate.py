@@ -120,6 +120,11 @@ def normalize_record(item: dict, v: Vocab) -> dict:
         rec[f"{campo}_norm"] = norm
         rec[f"{campo}_valido"] = norm is not None if (raw not in (None, "")) else True
 
+    rec["tren_rodaje_norm"] = None
+    rec["tren_rodaje_valido"] = True
+    rec["categoria_maquinaria_norm"] = None
+    rec["categoria_maquinaria_valido"] = True
+
     return rec
 
 
@@ -133,4 +138,8 @@ def empty_record() -> dict:
     for campo in ("traccion", "combustible", "clasificacion", "caja"):
         rec[f"{campo}_norm"] = None
         rec[f"{campo}_valido"] = True
+    rec["tren_rodaje_norm"] = None
+    rec["tren_rodaje_valido"] = True
+    rec["categoria_maquinaria_norm"] = None
+    rec["categoria_maquinaria_valido"] = True
     return rec

@@ -605,10 +605,10 @@ def _to_num(val) -> float | None:
 # SECCIÓN 7 — PIPELINE POR ARCHIVO
 # ══════════════════════════════════════════════════════════════════════════════
 
-def procesar_archivo(path: Path, cfg: Config) -> bool:
+def procesar_archivo(path: Path, cfg: Config, force: bool = False) -> bool:
     print(f"\n  ═══ {path.name} ═══")
     out_path = OUTPUTS_DIR / f"{path.stem}_fase1.xlsx"
-    if out_path.exists():
+    if out_path.exists() and not force:
         print(f"  ⏭  Ya procesado — saltando")
         return True
 
@@ -763,6 +763,7 @@ def _formatear_salida(path: Path):
 def main():
     ap = argparse.ArgumentParser(description="Fase 1 (Silver) — Extractor Veritrade")
     ap.add_argument("--input", help="Archivo específico (omitir = todos en data/bronze/)")
+    ap.add_argument("--force", action="store_true", help="Reprocesar aunque ya exista el silver")
     args = ap.parse_args()
 
     print("\n" + "═" * 60)
@@ -781,7 +782,7 @@ def main():
         return 1
 
     print(f"\n  {len(archivos)} archivo(s) a procesar\n")
-    ok = sum(procesar_archivo(a, cfg) for a in archivos)
+    ok = sum(procesar_archivo(a, cfg, force=args.force) for a in archivos)
 
     print(f"\n{'═' * 60}")
     print(f"  Listo: {ok}/{len(archivos)} archivos procesados")

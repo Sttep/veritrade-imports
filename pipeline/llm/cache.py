@@ -15,7 +15,7 @@ RESULTS = CACHE_DIR / "results.jsonl"
 
 
 def text_key(desc: str) -> str:
-    norm = re.sub(r"\s+", " ", (desc or "").strip().upper())
+    norm = re.sub(r"\s+", " ", (desc if isinstance(desc, str) else "").strip().upper())
     return hashlib.sha1(norm.encode("utf-8")).hexdigest()[:16]
 
 

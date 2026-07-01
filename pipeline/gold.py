@@ -112,7 +112,7 @@ def process_file(bronze_path: Path, silver_path: Path, out_path: Path,
         for paso in range(3):
             if not pend:
                 break
-            client.batch_size = args.batch_size if paso == 0 else 1
+            client.batch_size = args.batch_size if paso == 0 else min(5, args.batch_size)
             client.run(list(pend.items()), cache, on_batch=on_batch)
             pend = {k: d for k, d in pendientes.items() if k not in cache}
         stats = client.stats
@@ -218,6 +218,8 @@ def main():
     ap.add_argument("--workers",     type=int, default=4)
     ap.add_argument("--model",       default=None)
     ap.add_argument("--dry-run",     action="store_true")
+    ap.add_argument("--exclude",     nargs="*", default=[], metavar="PATRON",
+                    help="Excluir archivos cuyo nombre contenga alguno de estos patrones (sin distinción de mayúsculas)")
     args = ap.parse_args()
 
     load_dotenv()
@@ -229,6 +231,11 @@ def main():
     gold_dir.mkdir(parents=True, exist_ok=True)
 
     srcs = [Path(args.input)] if args.input else sorted(bronze_dir.glob("*.xlsx"))
+    if args.exclude:
+        excluidos = [f for f in srcs if any(p.lower() in f.name.lower() for p in args.exclude)]
+        srcs = [f for f in srcs if f not in excluidos]
+        for f in excluidos:
+            print(f"⏭  Excluido: {f.name}")
     if not srcs:
         print("❌ No se encontraron archivos en bronze.", file=sys.stderr)
         return 1

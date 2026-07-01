@@ -177,6 +177,31 @@ def normalizar_combustible(val):
     if "HIBRID" in v:                   return "HÍBRIDO"
     return "OTRO"
 
+_TRACCION_MAP = {
+    # espacios → sin espacios
+    "4 X 2":"4X2","4 X 4":"4X4","6 X 2":"6X2","6 X 4":"6X4",
+    "8 X 2":"8X2","8 X 4":"8X4","6 X 6":"6X6","10 X 4":"10X4",
+    # tag axle / eje levantable (notación con asterisco)
+    "6X2*4":"6X2","6X2 *4":"6X2","6X2* 4":"6X2","6X2*":"6X2",
+    "8X4*4":"8X4","8X4 *4":"8X4","8X4*":"8X4",
+    "4X2*4":"4X2","4X2*":"4X2",
+    # sufijos de tracto (TT, T/T, coma)
+    "6X4,TT":"6X4","6X4 TT":"6X4","6X4TT":"6X4",
+    "4X2,TT":"4X2","4X2 TT":"4X2","4X2TT":"4X2",
+    "6X2,TT":"6X2","6X2 TT":"6X2",
+    # nulos
+    "NAN":"N/D","NONE":"N/D","N/A":"N/D","":"N/D","-":"N/D","0":"N/D",
+}
+
+def normalizar_traccion(val):
+    v = str(val).upper().strip()
+    if v in _TRACCION_MAP:
+        return _TRACCION_MAP[v]
+    m = re.match(r'^(\d+X\d+)', v)
+    if m:
+        return m.group(1)
+    return v if v else "N/D"
+
 def calc_var(row, col_act, col_ant):
     ant, act = row[col_ant], row[col_act]
     if ant == 0: return "+100%" if act > 0 else "0%"
@@ -307,7 +332,7 @@ def cargar():
     if 'combustible' in df.columns:
         df['combustible_norm'] = df['combustible'].apply(normalizar_combustible)
     if 'traccion' in df.columns:
-        df['traccion'] = df['traccion'].astype(str).str.upper().str.strip().fillna('N/D')
+        df['traccion'] = df['traccion'].astype(str).str.upper().str.strip().apply(normalizar_traccion)
 
     # ── Peso bruto y segmento ─────────────────────────────────────────────────
     if 'pb' in df.columns:
@@ -516,7 +541,26 @@ with tab1:
                     color_discrete_sequence=COLOR_PALETTE, title="Tendencia Mensual Histórica")
     fig_t.update_layout(plot_bgcolor='white', height=420,
                         xaxis={'categoryorder':'array','categoryarray':meses_ord})
-    render_bloque("", fig_t, tend, "tend", "tendencia_mensual")
+
+    # Tabla pivot: Año × Mes  +  Total  +  Var% vs año anterior
+    tend_pivot = tend.pivot_table(
+        index='Año', columns='mes_nombre', values='Unidades', aggfunc='sum', fill_value=0
+    )
+    tend_pivot = tend_pivot.reindex(columns=[m for m in MESES_NOMBRES if m in tend_pivot.columns], fill_value=0)
+    tend_pivot['Total'] = tend_pivot.sum(axis=1)
+    años_piv = list(tend_pivot.index)
+    var_vals = []
+    for i, año in enumerate(años_piv):
+        if i == 0:
+            var_vals.append('—')
+        else:
+            ant = tend_pivot.loc[años_piv[i-1], 'Total']
+            act = tend_pivot.loc[año, 'Total']
+            var_vals.append(f"{(act-ant)/ant*100:+.1f}%" if ant > 0 else '—')
+    tend_pivot['Var% vs ant'] = var_vals
+    tend_pivot = tend_pivot.reset_index()
+
+    render_bloque("", fig_t, tend_pivot, "tend", "tendencia_mensual")
     st.divider()
 
     # ── Toggle carrocería / segmento peso ─────────────────────────────────────
