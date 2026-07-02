@@ -277,6 +277,23 @@ def render_bloque(titulo, fig, df_tabla, key, nombre="datos"):
     with st.expander("📊 Ver tabla", expanded=False):
         st.dataframe(df_tabla, hide_index=True, use_container_width=True)
 
+def tabla_dl(df_tabla, key, nombre="datos"):
+    """Muestra un dataframe con botones de descarga xlsx/csv debajo."""
+    st.dataframe(df_tabla, hide_index=True, use_container_width=True)
+    cx, cy = st.columns(2)
+    with cx:
+        try:
+            st.download_button("📥 xlsx", excel_bytes(tuple(df_tabla.itertuples(index=False)), nombre[:30]),
+                                f"{nombre}.xlsx", key=f"xl_{key}", use_container_width=True)
+        except Exception:
+            pass
+    with cy:
+        try:
+            st.download_button("📥 csv", descargar_csv(df_tabla), f"{nombre}.csv",
+                                key=f"csv_{key}", use_container_width=True)
+        except Exception:
+            pass
+
 def insights_ejecutivos(df_act, df_ant, total_act, total_ant):
     ins = []
     if total_ant > 0:
@@ -1161,40 +1178,22 @@ with tab3:
 
         st.divider()
 
-        # ── Gauge + Cuota mensual ─────────────────────────────────────────────
-        col_gauge, col_share_evo = st.columns([1, 2])
+        # ── Withmory vs resto + Evolución MS ─────────────────────────────────────
+        col_withmory, col_share_evo = st.columns([1, 2])
 
-        with col_gauge:
-            gauge_color = ("#4CAF50" if ms_act >= objetivo_ms
-                           else "#FFA500" if ms_act >= objetivo_ms * 0.8
-                           else "#FF5252")
-            fig_gauge = go.Figure(go.Indicator(
-                mode="gauge+number+delta",
-                value=round(ms_act, 1),
-                number=dict(suffix="%", font=dict(size=32, color=gauge_color)),
-                delta=dict(reference=objetivo_ms, suffix=" pp vs obj.",
-                           increasing=dict(color="#4CAF50"),
-                           decreasing=dict(color="#FF5252")),
-                gauge=dict(
-                    axis=dict(range=[0, max(ms_act * 1.5, objetivo_ms * 1.3)],
-                              ticksuffix="%", tickcolor="#666"),
-                    bar=dict(color=gauge_color, thickness=0.25),
-                    bgcolor="white",
-                    borderwidth=1, bordercolor="#DDD",
-                    steps=[
-                        dict(range=[0, objetivo_ms * 0.8], color="#FFEBEE"),
-                        dict(range=[objetivo_ms * 0.8, objetivo_ms], color="#FFF8E1"),
-                        dict(range=[objetivo_ms, max(ms_act * 1.5, objetivo_ms * 1.3)], color="#E8F5E9"),
-                    ],
-                    threshold=dict(line=dict(color="#1A1A1A", width=3),
-                                   thickness=0.85, value=objetivo_ms),
-                ),
-                title=dict(text=f"Market Share<br><span style='font-size:0.8em;color:#888'>Objetivo: {objetivo_ms:.0f}%</span>",
-                           font=dict(size=14)),
-            ))
-            fig_gauge.update_layout(height=260, margin=dict(l=20, r=20, t=40, b=10),
-                                    paper_bgcolor="white", font=dict(color="#333"))
-            st.plotly_chart(fig_gauge, use_container_width=True)
+        with col_withmory:
+            withmory_vc = pd.DataFrame({
+                'Grupo': ['Withmory', 'Resto de importadores'],
+                'Unidades': [w_n, n_sin - w_n],
+            })
+            fig_withmory = px.pie(withmory_vc, values='Unidades', names='Grupo', hole=0.5,
+                                  title="Withmory vs resto de importadores",
+                                  color='Grupo',
+                                  color_discrete_map={'Withmory': COLOR_SINOTRUK,
+                                                      'Resto de importadores': '#4A90E2'})
+            fig_withmory.update_layout(height=260, margin=dict(l=10, r=10, t=40, b=10),
+                                       showlegend=True, legend=dict(orientation="h", y=-0.1))
+            st.plotly_chart(fig_withmory, use_container_width=True)
 
         with col_share_evo:
             # Cuota mensual % en el dataset completo — últimos 24 meses
@@ -1276,6 +1275,14 @@ with tab3:
                 st.plotly_chart(fig_cif_cmp, use_container_width=True)
         if not (fob_sin and fob_mkt) and not (cif_sin and cif_mkt):
             st.info("No hay datos de FOB/CIF suficientes para esta comparación.")
+        else:
+            precio_vs_mercado = pd.DataFrame({
+                'Grupo': ['Mercado (todas las marcas)', MARCA_PROPIA],
+                'FOB Promedio': [fob_mkt, fob_sin] if (fob_sin and fob_mkt) else [None, None],
+                'CIF Promedio': [cif_mkt, cif_sin] if (cif_sin and cif_mkt) else [None, None],
+            })
+            with st.expander("📊 Ver tabla — Precio vs mercado", expanded=False):
+                tabla_dl(precio_vs_mercado, "precio_vs_mercado", "precio_sinotruk_vs_mercado")
 
         st.divider()
 
@@ -1295,7 +1302,7 @@ with tab3:
         st.plotly_chart(fig_imp, use_container_width=True)
 
         with st.expander("📊 Ver tabla — Importadores Sinotruk", expanded=False):
-            st.dataframe(imp_sin, hide_index=True, use_container_width=True)
+            tabla_dl(imp_sin, "imp_sin", "importadores_sinotruk")
 
         st.markdown("##### 🔍 Detalle por Importador")
         importador_sel_sin = st.selectbox(
@@ -1312,29 +1319,54 @@ with tab3:
             col_di3.metric("🏗️ Modelos", f"{n_mod_imp}")
 
             st.markdown("###### 💰 Cuánto paga este importador por modelo")
-            if COL_FOB and COL_FOB in df_imp_det.columns and df_imp_det[COL_FOB].sum() > 0:
-                precio_modelo_imp = (df_imp_det[df_imp_det[COL_FOB] > 0]
-                                     .groupby(COL_MODELO)
-                                     .agg(Unidades=(COL_MODELO,'size'), FOB=(COL_FOB,'mean'))
-                                     .reset_index().sort_values('Unidades', ascending=False).head(10))
-                precio_modelo_imp['FOB'] = precio_modelo_imp['FOB'].apply(lambda x: f"US$ {x:,.0f}")
-                precio_modelo_imp.columns = ['Modelo','Unidades','FOB Promedio']
-                st.dataframe(precio_modelo_imp, hide_index=True, use_container_width=True)
-            else:
-                st.info("No hay datos de FOB para este importador.")
+            col_precio_imp, nombre_precio_imp = None, None
+            if COL_FOB and COL_FOB in df_imp_det.columns:
+                if COL_CIF and COL_CIF in df_imp_det.columns:
+                    tipo_precio_imp = st.radio("Tipo de precio:", ["📦 FOB", "🚢 CIF"],
+                                               horizontal=True, key="tipo_precio_imp",
+                                               label_visibility="collapsed")
+                    col_precio_imp = COL_FOB if "FOB" in tipo_precio_imp else COL_CIF
+                    nombre_precio_imp = "FOB" if "FOB" in tipo_precio_imp else "CIF"
+                else:
+                    col_precio_imp, nombre_precio_imp = COL_FOB, "FOB"
 
-            with st.expander("📊 Ver tabla — Evolución mensual del importador", expanded=False):
+            if col_precio_imp and df_imp_det[col_precio_imp].sum() > 0:
+                precio_modelo_imp = (df_imp_det[df_imp_det[col_precio_imp] > 0]
+                                     .groupby(COL_MODELO)
+                                     .agg(Unidades=(COL_MODELO,'size'), Precio=(col_precio_imp,'mean'))
+                                     .reset_index().sort_values('Unidades', ascending=False).head(10))
+                precio_modelo_imp['Precio'] = precio_modelo_imp['Precio'].apply(lambda x: f"US$ {x:,.0f}")
+                precio_modelo_imp.columns = ['Modelo','Unidades', f'{nombre_precio_imp} Promedio']
+                tabla_dl(precio_modelo_imp, "precio_modelo_imp", f"precio_por_modelo_{importador_sel_sin}")
+            else:
+                st.info(f"No hay datos de {nombre_precio_imp or 'FOB/CIF'} para este importador.")
+
+            st.markdown("###### 🏷️ Cómo lo declara este importador")
+            marca_imp = df_imp_det[COL_MARCA].value_counts(normalize=True).reset_index()
+            marca_imp.columns = ['Marca Declarada', '% del importador']
+            marca_imp['% del importador'] = (marca_imp['% del importador'] * 100).round(1)
+            tabla_dl(marca_imp, "marca_decl_imp", f"marca_declarada_{importador_sel_sin}")
+
+            with st.expander("📊 Ver tabla — Evolución del importador", expanded=False):
                 evol_imp_det = df_imp_det.groupby(['año','mes','mes_nombre']).size().reset_index(name='Unidades')
                 evol_imp_det['periodo'] = evol_imp_det['mes_nombre'] + ' ' + evol_imp_det['año'].astype(str)
                 evol_imp_det = evol_imp_det.sort_values(['año','mes'])
                 if not evol_imp_det.empty:
                     fig_evol_imp_det = px.line(evol_imp_det, x='periodo', y='Unidades', markers=True,
-                                               title=f"Evolución de Unidades — {importador_sel_sin}",
+                                               title=f"Evolución mensual — {importador_sel_sin}",
                                                color_discrete_sequence=[COLOR_SINOTRUK])
                     fig_evol_imp_det.update_layout(plot_bgcolor='white', height=280,
                                                    xaxis_title="Período", yaxis_title="Unidades")
                     st.plotly_chart(fig_evol_imp_det, use_container_width=True)
-                    st.dataframe(evol_imp_det[['periodo','Unidades']], hide_index=True, use_container_width=True)
+                    st.markdown("**Mensual**")
+                    tabla_dl(evol_imp_det[['periodo','Unidades']], "evol_imp_mensual",
+                            f"evolucion_mensual_{importador_sel_sin}")
+
+                st.markdown("**Variación anual**")
+                evol_anual_imp = df_imp_det.groupby('año').size().reset_index(name='Unidades').sort_values('año')
+                evol_anual_imp['Var% vs año anterior'] = evol_anual_imp['Unidades'].pct_change().apply(
+                    lambda x: f"{x*100:+.1f}%" if pd.notna(x) else '—')
+                tabla_dl(evol_anual_imp, "evol_imp_anual", f"evolucion_anual_{importador_sel_sin}")
 
         st.divider()
 
@@ -1349,7 +1381,7 @@ with tab3:
                          color_discrete_sequence=COLOR_PALETTE)
         st.plotly_chart(fig_sub, use_container_width=True)
         with st.expander("📊 Ver tabla — Sub-marca declarada", expanded=False):
-            st.dataframe(sub_vc, hide_index=True, use_container_width=True)
+            tabla_dl(sub_vc, "sub_vc", "submarca_declarada")
 
         st.divider()
         st.markdown("#### ★ Marca Declarada en Aduana por Importador")
@@ -1360,20 +1392,25 @@ with tab3:
         cross['% imp'] = cross.groupby('grupo_importador')['unidades'].transform(
             lambda x: (x / x.sum() * 100).round(1))
         with st.expander("📊 Ver tabla — Marca Declarada por Importador", expanded=False):
-            st.dataframe(cross.rename(columns={'grupo_importador':'Importador',
-                                               COL_MARCA:'Marca Declarada','unidades':'Uds'}),
-                         hide_index=True, use_container_width=True)
+            tabla_dl(cross.rename(columns={'grupo_importador':'Importador',
+                                           COL_MARCA:'Marca Declarada','unidades':'Uds'}),
+                     "cross_marca_imp", "marca_declarada_por_importador")
 
         st.divider()
         st.markdown("#### 🏗️ Top Modelos Sinotruk")
-        if COL_MODELO in df_sin.columns and not df_sin.empty:
-            top_modelos_sin = df_sin.groupby([COL_MODELO,'categoria_maquinaria']).size().reset_index(name='Unidades')
+        segmentos_disp_sin = ['TODOS'] + sorted(df_sin['categoria_maquinaria'].dropna().unique().tolist())
+        segmento_sel_sin = st.selectbox("Segmento:", segmentos_disp_sin, key="segmento_sel_sin")
+        df_sin_modelos = (df_sin if segmento_sel_sin == 'TODOS'
+                          else df_sin[df_sin['categoria_maquinaria'] == segmento_sel_sin])
+
+        if COL_MODELO in df_sin_modelos.columns and not df_sin_modelos.empty:
+            top_modelos_sin = df_sin_modelos.groupby([COL_MODELO,'categoria_maquinaria']).size().reset_index(name='Unidades')
             top_modelos_sin = top_modelos_sin.sort_values('Unidades', ascending=False).head(15)
             top_modelos_sin = top_modelos_sin.rename(columns={COL_MODELO:'Modelo','categoria_maquinaria':'Segmento'})
 
             col_precio_sin, nombre_precio_sin = None, None
-            if COL_FOB and COL_FOB in df_sin.columns:
-                tiene_cif_sin = COL_CIF and COL_CIF in df_sin.columns
+            if COL_FOB and COL_FOB in df_sin_modelos.columns:
+                tiene_cif_sin = COL_CIF and COL_CIF in df_sin_modelos.columns
                 if tiene_cif_sin:
                     tipo_precio_sin = st.radio("Tipo de precio:", ["📦 FOB","🚢 CIF"],
                                                horizontal=True, key="tipo_precio_sin",
@@ -1383,7 +1420,7 @@ with tab3:
                 else:
                     col_precio_sin, nombre_precio_sin = COL_FOB, "FOB"
 
-                precio_sin_modelo = df_sin.groupby(COL_MODELO)[col_precio_sin].mean().reset_index()
+                precio_sin_modelo = df_sin_modelos.groupby(COL_MODELO)[col_precio_sin].mean().reset_index()
                 precio_sin_modelo.columns = ['Modelo', f'{nombre_precio_sin} Promedio']
                 top_modelos_sin = top_modelos_sin.merge(precio_sin_modelo, on='Modelo', how='left')
 
@@ -1392,10 +1429,17 @@ with tab3:
             if col_precio_label and col_precio_label in top_modelos_sin.columns:
                 format_sin[col_precio_label] = '${:,.2f}'
             st.dataframe(top_modelos_sin.style.format(format_sin), hide_index=True, use_container_width=True)
+            cx_tm, cy_tm = st.columns(2)
+            with cx_tm:
+                st.download_button("📥 xlsx", excel_bytes(tuple(top_modelos_sin.itertuples(index=False)), "top_modelos_sinotruk"),
+                                    "top_modelos_sinotruk.xlsx", key="xl_top_modelos_sin", use_container_width=True)
+            with cy_tm:
+                st.download_button("📥 csv", descargar_csv(top_modelos_sin), "top_modelos_sinotruk.csv",
+                                    key="csv_top_modelos_sin", use_container_width=True)
 
             if col_precio_sin:
                 with st.expander(f"📈 Evolución de {nombre_precio_sin} por modelo", expanded=False):
-                    evol_precio_sin = df_sin.groupby(['año','mes','mes_nombre',COL_MODELO])[col_precio_sin].mean().reset_index()
+                    evol_precio_sin = df_sin_modelos.groupby(['año','mes','mes_nombre',COL_MODELO])[col_precio_sin].mean().reset_index()
                     evol_precio_sin['periodo'] = evol_precio_sin['mes_nombre'] + ' ' + evol_precio_sin['año'].astype(str)
                     evol_precio_sin = evol_precio_sin.sort_values(['año','mes'])
                     ver_todos_precio_sin = st.checkbox("Mostrar todos los modelos", value=False, key="ver_todos_precio_sin")
@@ -1411,11 +1455,12 @@ with tab3:
                                                           xaxis_title="Período", yaxis_title=f"{nombre_precio_sin} ($)",
                                                           legend=dict(title="Modelo", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                         st.plotly_chart(fig_evol_precio_sin, use_container_width=True)
+                        tabla_dl(evol_precio_sin, "evol_precio_sin", f"evolucion_{nombre_precio_sin}_por_modelo")
                     else:
                         st.info("No hay suficientes datos para mostrar la evolución de precios.")
 
             with st.expander("📦 Evolución de unidades por modelo", expanded=False):
-                evol_uds_sin = df_sin.groupby(['año','mes','mes_nombre',COL_MODELO]).size().reset_index(name='Unidades')
+                evol_uds_sin = df_sin_modelos.groupby(['año','mes','mes_nombre',COL_MODELO]).size().reset_index(name='Unidades')
                 evol_uds_sin['periodo'] = evol_uds_sin['mes_nombre'] + ' ' + evol_uds_sin['año'].astype(str)
                 evol_uds_sin = evol_uds_sin.sort_values(['año','mes'])
                 ver_todos_uds_sin = st.checkbox("Mostrar todos los modelos", value=False, key="ver_todos_uds_sin")
@@ -1431,8 +1476,11 @@ with tab3:
                                                    xaxis_title="Período", yaxis_title="Unidades",
                                                    legend=dict(title="Modelo", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                     st.plotly_chart(fig_evol_uds_sin, use_container_width=True)
+                    tabla_dl(evol_uds_sin, "evol_uds_sin", "evolucion_unidades_por_modelo")
                 else:
                     st.info("No hay suficientes datos para mostrar la evolución de unidades.")
+        else:
+            st.info(f"No hay modelos Sinotruk en el segmento {segmento_sel_sin} para el período seleccionado.")
 
         st.divider()
         carr_sin = df_sin['categoria_maquinaria'].value_counts().reset_index()
@@ -1445,7 +1493,7 @@ with tab3:
         fig_cs.update_layout(plot_bgcolor='white', coloraxis_showscale=False, height=280)
         st.plotly_chart(fig_cs, use_container_width=True)
         with st.expander("📊 Ver tabla — Carrocería", expanded=False):
-            st.dataframe(carr_sin, hide_index=True, use_container_width=True)
+            tabla_dl(carr_sin, "carr_sin", "carroceria_sinotruk")
 
         # ── Segmento por peso ─────────────────────────────────────────────────
         if 'segmento_peso' in df_sin.columns and df_sin['pb'].notna().sum() > 0:
@@ -1463,7 +1511,7 @@ with tab3:
             fig_ss.update_traces(textposition='outside')
             st.plotly_chart(fig_ss, use_container_width=True)
             with st.expander("📊 Ver tabla — Segmento de Peso", expanded=False):
-                st.dataframe(seg_sin, hide_index=True, use_container_width=True)
+                tabla_dl(seg_sin, "seg_sin", "segmento_de_peso_sinotruk")
 
         st.divider()
         st.markdown("#### 📈 Evolución Withmory vs Competencia Sinotruk")
@@ -1476,8 +1524,8 @@ with tab3:
         fig_evo_sin.update_layout(plot_bgcolor='white', height=300)
         st.plotly_chart(fig_evo_sin, use_container_width=True)
         with st.expander("📊 Ver tabla — Evolución anual por importador", expanded=False):
-            st.dataframe(evo_sin.rename(columns={'grupo_importador':'Importador','n':'Unidades'}),
-                         hide_index=True, use_container_width=True)
+            tabla_dl(evo_sin.rename(columns={'grupo_importador':'Importador','n':'Unidades'}),
+                     "evo_sin_anual", "evolucion_anual_por_importador")
 
         # Evolución de unidades por dealer (mensual)
         with st.expander("📦 Evolución mensual de unidades por dealer"):
@@ -1514,8 +1562,7 @@ with tab3:
                                         'Var%':f"{vu:+.1f}%",
                                         'Tend':'📈' if vu>0 else '📉'})
                 if var_sin:
-                    st.dataframe(pd.DataFrame(var_sin), hide_index=True,
-                                 use_container_width=True)
+                    tabla_dl(pd.DataFrame(var_sin), "var_sin_dealer", f"variacion_marca_{imp_sel_sin}")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 4 — MAPA DE BURBUJAS (fondo blanco, plano, filtros)
