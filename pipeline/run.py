@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Pipeline Veritrade: Bronze → Silver → Gold")
+    ap = argparse.ArgumentParser(description="Pipeline Veritrade: Bronze -> Silver -> Gold")
     ap.add_argument("--silver-only", action="store_true", help="Solo ejecutar Fase 1")
     ap.add_argument("--gold-only",   action="store_true", help="Solo ejecutar Fase 2")
     ap.add_argument("--input", help="Archivo específico a procesar (opcional)")

@@ -1,56 +1,63 @@
-%% Flujo de extracción estructurada — Veritrade camiones (partida 8704229000)
+%% Flujo del pipeline Veritrade — arquitectura medallion (bronze -> silver -> gold)
 %% Render: https://mermaid.live  o  mmdc -i docs/flujo.mmd -o docs/flujo.svg
 flowchart TD
-    RAW[("inputs/*.xlsx<br/>exports Veritrade (vehículos)<br/>batch")]:::input
+    RAW[("data/bronze/*.xlsx<br/>exports Veritrade crudos (privado)")]:::input
+    REFS[("refs/*.xlsx<br/>reportes mensuales AAP")]:::input
 
-    %% ---------- Fase 1: parser determinístico ----------
-    subgraph V1["Fase 1 — Parser determinístico (gratis)"]
-        EXTRACT["scripts/extract_descripcion.py<br/>tokeniza CÓDIGO:valor"]:::script
-        ESTR[("outputs/&lt;stem&gt;_estructurado.xlsx<br/>~28 campos crudos")]:::output
-        EXTRACT --> ESTR
+    %% ---------- Silver: parser determinístico ----------
+    subgraph SV["pipeline/silver.py — Bronze -> Silver (gratis, sin red)"]
+        EXTRACT["tokeniza CÓDIGO:valor<br/>~28 columnas tipadas"]:::script
+        SILVER[("data/silver/&lt;stem&gt;_fase1.xlsx")]:::output
+        EXTRACT --> SILVER
     end
     RAW --> EXTRACT
 
-    EDA1["notebooks/eda_camiones.ipynb<br/>EDA determinístico"]:::nb
-    ESTR --> EDA1
-
     %% ---------- Vocabulario ----------
-    EJ[("data/ejemplo.xlsx<br/>vocab semilla:<br/>188 marcas + enums")]:::input
     VX[("data/vocab_extra.json<br/>marcas nuevas / alias /<br/>alias de modelo")]:::input
-    VOCAB["scripts/llm/vocab.py<br/>fusiona semilla + extra<br/>(190 marcas)"]:::script
-    EJ --> VOCAB
+    VOCAB["pipeline/llm/vocab.py<br/>fusiona semilla + extra"]:::script
     VX --> VOCAB
 
-    %% ---------- Fase B: LLM ----------
-    subgraph FB["Fase B — Normalización con LLM (DeepSeek)"]
-        ORq["scripts/extract_llm.py<br/>orquestador (batch sobre inputs/)"]:::script
-        SAMP["sampler.py<br/>muestreo estratificado"]:::script
-        CACHE[("cache.py<br/>.cache/llm/results.jsonl<br/>dedup + reanudable")]:::cache
-        CLIENT["client.py → api.deepseek.com<br/>batching · retry · prompt-cache"]:::ext
-        VAL["validate.py<br/>JSON robusto + enums(sinónimos)<br/>+ fuzzy modelo + model_aliases<br/>→ flag: ok / alias / low / nomatch"]:::script
-        REP["report.py<br/>cobertura · costo · lift"]:::script
+    %% ---------- Gold: normalización LLM ----------
+    subgraph GD["pipeline/gold.py — Silver -> Gold (normalización LLM)"]
+        SAMP["llm/sampler.py<br/>muestreo por confianza"]:::script
+        CACHE[("cache.py<br/>.cache/llm/<br/>dedup + reanudable")]:::cache
+        CLIENT["llm/client.py -> api.deepseek.com<br/>batching · retry · prompt-cache"]:::ext
+        VAL["llm/validate.py<br/>enums + rapidfuzz + model_aliases<br/>-> flag: ok / alias / low / nomatch"]:::script
+        REP["llm/report.py<br/>cobertura · costo"]:::script
 
-        ORq --> SAMP --> ORq
-        ORq -->|texto único no cacheado| CLIENT
-        CLIENT --> CACHE
-        CACHE -->|raw LLM| VAL
-        VAL --> REP
+        SAMP -->|texto no cacheado| CLIENT --> CACHE -->|raw LLM| VAL --> REP
     end
-    ESTR -->|+ texto crudo desc| ORq
-    VOCAB --> ORq
+    SILVER -->|+ texto crudo desc| SAMP
+    VOCAB --> SAMP
     VOCAB --> VAL
 
-    NORM[("outputs/&lt;stem&gt;_normalizado.xlsx<br/>normalizado_llm · _revisar_llm<br/>_vocab_nuevo · _reporte<br/>modelo fill 99.7%")]:::output
-    VAL --> NORM
-    REP --> NORM
+    GOLD[("data/gold/&lt;stem&gt;_normalizado.xlsx<br/>normalizado_final · _revisar_final<br/>_vocab_nuevo · _reporte")]:::output
+    REP --> GOLD
 
-    EDA2["notebooks/eda_normalizado.ipynb<br/>EDA normalizado"]:::nb
-    NORM --> EDA2
+    %% ---------- Consolidación ----------
+    BUILD["pipeline/build_parquet.py<br/>une + dedup por DUA+VIN"]:::script
+    GOLD --> BUILD
+    PARQUET[("data/gold/camiones.parquet<br/>(y maquinaria.parquet)")]:::output
+    BUILD --> PARQUET
+
+    %% ---------- Referencia AAP y cobertura ----------
+    AAP["pipeline/aap.py"]:::script
+    REFS --> AAP
+    AAP_OUT[("data/gold/aap_camiones.parquet")]:::output
+    AAP --> AAP_OUT
+
+    COBERTURA["scripts/validar_cobertura.py<br/>cobertura Veritrade vs AAP por marca"]:::script
+    PARQUET --> COBERTURA
+    AAP_OUT --> COBERTURA
+
+    %% ---------- Dashboard ----------
+    DASH["app.py + pages/2_Camiones.py<br/>(Streamlit Cloud)"]:::nb
+    PARQUET --> DASH
 
     %% ---------- Loop de curación ----------
-    NORM -.->|"_revisar_llm / _vocab_nuevo — validación SME"| CURA{{"¿Ampliar diccionario?"}}:::decision
+    GOLD -.->|"_revisar_final / _vocab_nuevo — validación SME"| CURA{{"¿Ampliar diccionario?"}}:::decision
     CURA -.->|editar| VX
-    CURA -.->|re-normalizar GRATIS<br/>desde cache| ORq
+    CURA -.->|re-normalizar GRATIS desde cache| SAMP
 
     classDef input fill:#FFF3CD,stroke:#B8860B,color:#000
     classDef output fill:#D1E7DD,stroke:#0F5132,color:#000

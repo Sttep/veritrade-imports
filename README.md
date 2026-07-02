@@ -97,7 +97,8 @@ uv run python pipeline/aap.py                                  # refs/*.xlsx -> 
 uv run python scripts/validar_cobertura.py --mes 6 --anio 2026  # cobertura Veritrade vs AAP por marca
 ```
 
-Ver `metodologia_descarga_mensual.md` para el runbook completo de descarga + validación mensual.
+Ver `metodologia_descarga_mensual.md` para el runbook completo de descarga + validación mensual, y
+`docs/flujo.mmd` para el diagrama del flujo completo (render en https://mermaid.live).
 
 ### Dashboard
 
