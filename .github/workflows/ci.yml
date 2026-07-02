@@ -21,7 +21,7 @@ jobs:
 
       - name: Lint
         # No bloquea todavia: hay deuda de lint preexistente en codigo activo
-        # (pages/, dashboard_camiones.py, scripts/, pipeline/) sin arreglar aun.
+        # (pages/, scripts/, pipeline/) sin arreglar aun.
         # Ver issue liz-* de bd para el seguimiento. Quitar continue-on-error
         # una vez que el conteo llegue a cero.
         run: uv run ruff check .

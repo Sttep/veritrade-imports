@@ -102,7 +102,7 @@ Ver `metodologia_descarga_mensual.md` para el runbook completo de descarga + val
 ### Dashboard
 
 ```bash
-uv run streamlit run dashboard.py
+uv run streamlit run app.py
 ```
 
 ### Curar el diccionario
