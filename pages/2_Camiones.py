@@ -1134,9 +1134,9 @@ with tab3:
         c2.metric("📊 Market Share", f"{ms_act:.1f}%",
                   delta=f"{delta_ms:+.1f} pp vs ant.",
                   delta_color="normal")
-        c3.metric("🎯 vs Objetivo", f"{ms_act - objetivo_ms:+.1f} pp",
-                  delta=f"objetivo: {objetivo_ms:.0f}%",
-                  delta_color="off")
+        c3.metric("🔄 vs Periodo Anterior (pp)", f"{delta_ms:+.1f} pp",
+                  delta=f"anterior: {ms_ant:.1f}%",
+                  delta_color="normal")
         if fob_sin:
             delta_fob = f"US$ {fob_sin - fob_mkt:+,.0f} vs mercado" if fob_mkt else None
             c4.metric("💰 FOB Prom.", f"US$ {fob_sin:,.0f}", delta=delta_fob,
