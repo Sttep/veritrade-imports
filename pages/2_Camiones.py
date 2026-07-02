@@ -654,19 +654,19 @@ with tab1:
         if resumen_s:
             st.dataframe(pd.DataFrame(resumen_s), hide_index=True, use_container_width=True)
 
-        st.markdown("##### 🔍 Composición por Segmento (Top marcas)")
-        comp_rows = []
+        st.markdown("##### 🔍 Composición por Segmento")
         for seg in SEG_ORDEN[:-1]:  # excluir SIN DATO
             sub = df_actual[df_actual['segmento_peso'] == seg]
             total = len(sub)
             if total == 0:
                 continue
-            top = sub[COL_MARCA].value_counts(normalize=True).head(4)
-            top_txt = " · ".join(f"{m} ({p*100:.0f}%)" for m, p in top.items())
-            comp_rows.append({'Segmento': seg, 'Unidades': total, 'Top marcas': top_txt})
-        if comp_rows:
-            st.dataframe(pd.DataFrame(comp_rows), hide_index=True, use_container_width=True,
-                        column_config={'Top marcas': st.column_config.TextColumn(width='large')})
+            with st.expander(f"{seg} — {total:,} unidades"):
+                comp = (sub.groupby([COL_MARCA, COL_MODELO], observed=True)
+                           .size().reset_index(name='Unidades')
+                           .sort_values('Unidades', ascending=False))
+                comp['% del segmento'] = (comp['Unidades']/total*100).round(1)
+                comp.columns = ['Marca', 'Modelo', 'Unidades', '% del segmento']
+                st.dataframe(comp, hide_index=True, use_container_width=True, height=350)
 
     else:
         st.markdown("##### 📋 Variación Anual por Tipo de Carrocería")
