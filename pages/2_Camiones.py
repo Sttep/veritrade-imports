@@ -636,37 +636,36 @@ with tab1:
         fig_seg.update_traces(textposition='outside')
         render_bloque("", fig_seg, seg_act, "seg_peso", "segmento_peso")
 
-        st.markdown("##### 📋 Variación Anual por Segmento")
-        años_lista = sorted([int(a) for a in df_actual['año'].dropna().unique()])
-        resumen_s = []
-        for seg in SEG_ORDEN[:-1]:  # excluir SIN DATO
-            fila = {'Segmento': seg}
-            prev = None
-            for a in años_lista:
-                val = int((df_actual['año']==a).values.__and__(
-                    (df_actual['segmento_peso']==seg).values).sum())
-                fila[str(a)] = val
-                if prev is not None and prev > 0:
-                    fila[f"VAR {a}"] = f"{((val-prev)/prev*100):+.1f}%"
-                prev = val
-            if any(fila.get(str(a),0)>0 for a in años_lista):
-                resumen_s.append(fila)
-        if resumen_s:
-            st.dataframe(pd.DataFrame(resumen_s), hide_index=True, use_container_width=True)
+        with st.expander("📋 Ver tabla — Variación Anual por Segmento", expanded=False):
+            años_lista = sorted([int(a) for a in df_actual['año'].dropna().unique()])
+            resumen_s = []
+            for seg in SEG_ORDEN[:-1]:  # excluir SIN DATO
+                fila = {'Segmento': seg}
+                prev = None
+                for a in años_lista:
+                    val = int((df_actual['año']==a).values.__and__(
+                        (df_actual['segmento_peso']==seg).values).sum())
+                    fila[str(a)] = val
+                    if prev is not None and prev > 0:
+                        fila[f"VAR {a}"] = f"{((val-prev)/prev*100):+.1f}%"
+                    prev = val
+                if any(fila.get(str(a),0)>0 for a in años_lista):
+                    resumen_s.append(fila)
+            if resumen_s:
+                st.dataframe(pd.DataFrame(resumen_s), hide_index=True, use_container_width=True)
 
-        st.markdown("##### 🔍 Composición por Segmento")
-        for seg in SEG_ORDEN[:-1]:  # excluir SIN DATO
-            sub = df_actual[df_actual['segmento_peso'] == seg]
+        with st.expander("🔍 Ver tabla — Composición por Segmento (marca + modelo)", expanded=False):
+            segs_disp = [s for s in SEG_ORDEN[:-1] if (df_actual['segmento_peso']==s).any()]
+            seg_pick = st.selectbox("Segmento a revisar:", segs_disp, key="seg_composicion_pick")
+            sub = df_actual[df_actual['segmento_peso'] == seg_pick]
             total = len(sub)
-            if total == 0:
-                continue
-            with st.expander(f"{seg} — {total:,} unidades"):
-                comp = (sub.groupby([COL_MARCA, COL_MODELO], observed=True)
-                           .size().reset_index(name='Unidades')
-                           .sort_values('Unidades', ascending=False))
-                comp['% del segmento'] = (comp['Unidades']/total*100).round(1)
-                comp.columns = ['Marca', 'Modelo', 'Unidades', '% del segmento']
-                st.dataframe(comp, hide_index=True, use_container_width=True, height=350)
+            comp = (sub.groupby([COL_MARCA, COL_MODELO], observed=True)
+                       .size().reset_index(name='Unidades')
+                       .sort_values('Unidades', ascending=False))
+            comp['% del segmento'] = (comp['Unidades']/total*100).round(1)
+            comp.columns = ['Marca', 'Modelo', 'Unidades', '% del segmento']
+            st.caption(f"{seg_pick} — {total:,} unidades")
+            st.dataframe(comp, hide_index=True, use_container_width=True, height=400)
 
     else:
         st.markdown("##### 📋 Variación Anual por Tipo de Carrocería")
