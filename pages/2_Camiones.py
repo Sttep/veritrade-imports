@@ -342,7 +342,16 @@ def cargar():
             return pd.DataFrame(), None
         df = pd.concat(frames, ignore_index=True)
     if 'dua_dam' in df.columns:
-        df['_k'] = df.apply(lambda r: f"{r.get('dua_dam','')}|{r.get('vin') or r.get('chasis') or ''}", axis=1)
+        dua = df['dua_dam'].fillna('').astype(str)
+        if 'vin' in df.columns:
+            vin_part = df['vin']
+            if 'chasis' in df.columns:
+                vin_part = vin_part.where(vin_part.notna() & (vin_part.astype(str) != ''), df['chasis'])
+        elif 'chasis' in df.columns:
+            vin_part = df['chasis']
+        else:
+            vin_part = pd.Series('', index=df.index)
+        df['_k'] = dua + '|' + vin_part.fillna('').astype(str)
         df = df.drop_duplicates('_k').drop(columns='_k')
 
     if 'fecha_dua' in df.columns:
