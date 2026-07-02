@@ -1633,9 +1633,8 @@ with tab5:
         comp = pd.merge(aap_marca, vt_marca, on="marca", how="outer").fillna(0)
         comp["aap_total"] = comp["aap_total"].astype(int)
         comp["vt_total"]  = comp["vt_total"].astype(int)
-        comp["cobertura_pct"] = (
-            (comp["vt_total"] / comp["aap_total"].replace(0, pd.NA)) * 100
-        ).round(1)
+        aap_safe = comp["aap_total"].astype(float).where(comp["aap_total"] > 0)
+        comp["cobertura_pct"] = (comp["vt_total"].astype(float) / aap_safe * 100).round(1)
         comp = comp[comp["aap_total"] > 0].sort_values("aap_total", ascending=False)
 
         # KPIs globales
