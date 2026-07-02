@@ -1178,7 +1178,8 @@ with tab3:
         df_comp_ms = df.copy()
         df_comp_ms = df_comp_ms[df_comp_ms['fecha'].notna()]
         df_comp_ms['_marca_grp'] = df_comp_ms[COL_MARCA].astype(str).apply(
-            lambda m: MARCA_PROPIA if any(k in m.upper() for k in SINOTRUK_KW)
+            lambda m: 'OTROS' if not isinstance(m, str) or not m.strip() or m == 'None'
+            else MARCA_PROPIA if any(k in m.upper() for k in SINOTRUK_KW)
             else m.upper().strip() if m.upper().strip() in top_marcas_comp
             else 'OTROS')
         df_comp_ms = df_comp_ms[df_comp_ms['_marca_grp'] != 'OTROS']
