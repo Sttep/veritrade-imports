@@ -10,14 +10,11 @@ from __future__ import annotations
 
 import re
 import argparse
-import sys
 from pathlib import Path
-from datetime import datetime
 import pandas as pd
-import numpy as np
 from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Font, PatternFill
 
 # ==================== CONFIGURACIÓN ====================
 INPUTS_DIR = "inputs"

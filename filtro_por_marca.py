@@ -10,7 +10,8 @@ Uso:
   3. Los limpios quedan en  inputs/  listos para extractor_fase1.py
 """
 from pathlib import Path
-import re, pandas as pd
+import re
+import pandas as pd
 import warnings; warnings.filterwarnings("ignore")
 
 ENTRADA = Path("inputs/marcasotros")
@@ -81,13 +82,13 @@ def procesar(path: Path):
 
     col = encontrar_col_desc(df)
     if not col:
-        print(f"     ❌ No encontré columna de descripción — saltando")
+        print("     ❌ No encontré columna de descripción — saltando")
         return
     print(f"     Columna usada: '{col}'")
 
     # Mostrar primeras 5 descripciones para verificar
     muestras = df[col].dropna().head(5).tolist()
-    print(f"     Muestra de descripciones:")
+    print("     Muestra de descripciones:")
     for m in muestras:
         print(f"       → {str(m)[:80]}")
 
@@ -104,7 +105,7 @@ def procesar(path: Path):
     print(f"     ❌ Excluir (resto)    : {n_excl:>6,}  ({100-pct:.1f}%)")
 
     if n_ok == 0:
-        print(f"     ⚠  CERO filas N1/N2/N3 — ¿columna correcta?")
+        print("     ⚠  CERO filas N1/N2/N3 — ¿columna correcta?")
         print(f"     → Primeras 3 celdas de '{col}':")
         for v in df[col].dropna().head(3):
             print(f"        '{str(v)[:100]}'")
@@ -128,7 +129,7 @@ def main():
     archivos = sorted(ENTRADA.glob("*.xlsx"))
     if not archivos:
         print(f"\n  ⚠  No hay .xlsx en {ENTRADA.resolve()}")
-        print(f"  → Pon tus descargas de Veritrade en esa carpeta")
+        print("  → Pon tus descargas de Veritrade en esa carpeta")
         return
 
     print(f"\n  {len(archivos)} archivo(s) encontrado(s)\n")
@@ -136,7 +137,7 @@ def main():
         procesar(p)
 
     print(f"\n{'═'*60}")
-    print(f"  Listo → python extractor_fase1.py")
+    print("  Listo → python extractor_fase1.py")
     print(f"{'═'*60}\n")
 
 if __name__ == "__main__":

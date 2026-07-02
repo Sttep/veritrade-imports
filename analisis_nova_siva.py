@@ -16,7 +16,8 @@ Salida: outputs/analisis_nova_siva.xlsx
 """
 
 from __future__ import annotations
-import argparse, re
+import argparse
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -186,16 +187,16 @@ def main(ruta: Path):
     valido_ca  = ca_cruzado[ca_cruzado["sugerencia"]=="→ VÁLIDO"]
     revisar_ca = ca_cruzado[ca_cruzado["sugerencia"]=="⚠ REVISAR"]
 
-    print(f"\n  ── CA: (carrocería) ─────────────────────────────────────────")
+    print("\n  ── CA: (carrocería) ─────────────────────────────────────────")
     print(f"  Solo en NOVA (→ excluir):  {len(excluir_ca)}")
     print(f"  Solo en SIVA (→ válido):   {len(valido_ca)}")
     print(f"  En ambas     (⚠ revisar):  {len(revisar_ca)}")
 
-    print(f"\n  Muestra → EXCLUIR:")
+    print("\n  Muestra → EXCLUIR:")
     for _, r in excluir_ca.head(8).iterrows():
         print(f"    {r['CA']:<35} NOVA:{int(r['frec_NOVA']):>5}")
 
-    print(f"\n  Muestra → VÁLIDO:")
+    print("\n  Muestra → VÁLIDO:")
     for _, r in valido_ca.head(8).iterrows():
         print(f"    {r['CA']:<35} SIVA:{int(r['frec_SIVA']):>5}")
 
@@ -211,7 +212,7 @@ def main(ruta: Path):
     print(f"\n  ✅ {out}")
     print(f"     CA_inventario    — {len(ca_cruzado)} valores únicos de carrocería")
     print(f"     MARCA_inventario — {len(marca_cruzado)} valores únicos de marca")
-    print(f"     NOVA/SIVA_completo — extracción campo por campo\n")
+    print("     NOVA/SIVA_completo — extracción campo por campo\n")
     return 0
 
 

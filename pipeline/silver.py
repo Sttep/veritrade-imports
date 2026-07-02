@@ -11,15 +11,14 @@ Uso:
 """
 
 from __future__ import annotations
-import argparse, re, sys
+import argparse
+import re
 from pathlib import Path
 from datetime import datetime
 
 import pandas as pd
-import numpy as np
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
-from openpyxl.utils import get_column_letter
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SECCIÓN 1 — RUTAS Y CONSTANTES
@@ -609,7 +608,7 @@ def procesar_archivo(path: Path, cfg: Config, force: bool = False) -> bool:
     print(f"\n  ═══ {path.name} ═══")
     out_path = OUTPUTS_DIR / f"{path.stem}_fase1.xlsx"
     if out_path.exists() and not force:
-        print(f"  ⏭  Ya procesado — saltando")
+        print("  ⏭  Ya procesado — saltando")
         return True
 
     df_raw, meta = leer_archivo(path)

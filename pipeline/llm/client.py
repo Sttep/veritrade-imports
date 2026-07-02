@@ -15,7 +15,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 from tqdm import tqdm
 
 from . import schema
-from .cache import Cache, text_key
+from .cache import Cache
 from .vocab import Vocab
 
 BASE_URL = "https://api.deepseek.com"

@@ -26,10 +26,8 @@ from __future__ import annotations
 from pathlib import Path
 import warnings
 import pandas as pd
-import numpy as np
 from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
-from openpyxl.utils import get_column_letter
 
 warnings.filterwarnings("ignore")
 
@@ -455,19 +453,19 @@ def main():
     df_carroceria  = tabla_carroceria(df_sin, años)
 
     # Print consola
-    print(f"\n  Withmory market share Sinotruk:")
+    print("\n  Withmory market share Sinotruk:")
     for _, r in share.iterrows():
         print(f"    {int(r['año'])}: {int(r['withmory']):>4} uds "
               f"/ {int(r['total_mercado_sinotruk']):>4} total "
               f"= {r['market_share_%']:>5.1f}%")
 
-    print(f"\n  Top importadores Sinotruk:")
+    print("\n  Top importadores Sinotruk:")
     for _, r in df_importadores.head(8).iterrows():
         w = " ← WITHMORY" if WITHMORY.upper()[:15] in str(r["importador"]).upper() else ""
         print(f"    {r['importador'][:45]:<45} {int(r['total']):>5} uds  "
               f"[{r['tipo']}]{w}")
 
-    print(f"\n  Marca declarada por importador:")
+    print("\n  Marca declarada por importador:")
     top5_imp = df_importadores.head(5)["importador"].tolist()
     for imp in top5_imp:
         sub = df_marca_dec[df_marca_dec["importador"]==imp]

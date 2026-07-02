@@ -36,7 +36,7 @@ def build(df, stats=None):
             modelo_flag_series = df['modelo_flag'].astype(str)
             for flag, c in modelo_flag_series.value_counts().items():
                 metricas.append({"metrica": f"modelo_flag::{flag}", "valor": float(c)})
-        except Exception as e:
+        except Exception:
             # Si falla, solo ponemos un error y seguimos
             metricas.append({"metrica": "modelo_flag::error", "valor": 0.0})
     else:

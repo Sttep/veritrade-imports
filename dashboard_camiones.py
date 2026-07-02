@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 from calendar import monthrange
 from pathlib import Path
-import io, re
+import io
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Importaciones de Camiones - Dashboard",
@@ -779,7 +779,7 @@ with tab2:
                     if not evp.empty:
                         fig_evp = px.line(evp, x='periodo', y=col_p, color=COL_MODELO,
                                           markers=True, color_discrete_sequence=COLOR_PALETTE,
-                                          title=f"FOB Promedio por Modelo")
+                                          title="FOB Promedio por Modelo")
                         fig_evp.update_layout(plot_bgcolor='white', height=280,
                                               yaxis_tickprefix='US$ ', yaxis_tickformat=',.0f',
                                               legend=dict(orientation="h", y=1.02))
@@ -817,7 +817,7 @@ with tab2:
                     if not evu.empty:
                         fig_evu = px.line(evu, x='periodo', y='Uds', color=COL_MODELO,
                                           markers=True, color_discrete_sequence=COLOR_PALETTE,
-                                          title=f"Evolución de Unidades por Modelo")
+                                          title="Evolución de Unidades por Modelo")
                         fig_evu.update_layout(plot_bgcolor='white', height=280,
                                               legend=dict(orientation="h", y=1.02))
                         st.plotly_chart(fig_evu, use_container_width=True)
@@ -1226,7 +1226,7 @@ with tab4:
                 height=500,
                 margin=dict(l=10,r=10,t=50,b=10),
                 title=dict(
-                    text=f'Importaciones por País de Origen'
+                    text='Importaciones por País de Origen'
                          + (f' · {cont_sel}' if cont_sel != "TODOS" else ''),
                     font=dict(size=16, color='#1A1A1A'), x=0.5, xanchor='center'
                 ),

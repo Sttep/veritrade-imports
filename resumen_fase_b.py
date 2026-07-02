@@ -1,4 +1,5 @@
-﻿import pandas as pd, glob
+﻿import pandas as pd
+import glob
 
 files = glob.glob('outputs/*_normalizado.xlsx')
 
@@ -37,6 +38,6 @@ print('='*60)
 print(f'  Total:           {total:>8,}')
 print(f'  Con marca:       {df[marca_col].notna().sum():>8,}  ({100*df[marca_col].notna().sum()/total:.1f}%)')
 print(f'  Con modelo:      {df[modelo_col].notna().sum():>8,}  ({100*df[modelo_col].notna().sum()/total:.1f}%)')
-print(f'  Top categorias:')
+print('  Top categorias:')
 for cat, n in df['categoria_maquinaria'].value_counts().head(10).items():
     print(f'    {cat:<30} {n:>6}')

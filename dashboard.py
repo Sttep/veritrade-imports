@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
-from datetime import datetime, date
+from datetime import datetime
 from calendar import monthrange
 from pathlib import Path
 import io
@@ -1196,7 +1195,7 @@ with tab2:
                                     y='Unidades',
                                     color=COL_MODELO,
                                     markers=True,
-                                    title=f"Evolución de Unidades Importadas por Modelo",
+                                    title="Evolución de Unidades Importadas por Modelo",
                                     color_discrete_sequence=COLOR_PALETTE
                                 )
                                 fig_evol_unidades.update_layout(
@@ -1208,7 +1207,7 @@ with tab2:
                                     legend=dict(title="Modelo", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                                 )
                                 fig_evol_unidades.update_traces(
-                                    hovertemplate=f"Unidades: %{{y:,.0f}}<br>Periodo: %{{x}}<br>Modelo: %{{fullData.name}}<extra></extra>"
+                                    hovertemplate="Unidades: %{y:,.0f}<br>Periodo: %{x}<br>Modelo: %{fullData.name}<extra></extra>"
                                 )
                                 st.plotly_chart(fig_evol_unidades, use_container_width=True)
                                 
@@ -2167,7 +2166,7 @@ with tab2:
                                     y='Unidades',
                                     color=COL_MODELO,
                                     markers=True,
-                                    title=f"Evolución de Unidades Importadas por Modelo",
+                                    title="Evolución de Unidades Importadas por Modelo",
                                     color_discrete_sequence=COLOR_PALETTE
                                 )
                                 fig_evol_unidades_imp.update_layout(
@@ -2179,7 +2178,7 @@ with tab2:
                                     legend=dict(title="Modelo", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                                 )
                                 fig_evol_unidades_imp.update_traces(
-                                    hovertemplate=f"Unidades: %{{y:,.0f}}<br>Periodo: %{{x}}<br>Modelo: %{{fullData.name}}<extra></extra>"
+                                    hovertemplate="Unidades: %{y:,.0f}<br>Periodo: %{x}<br>Modelo: %{fullData.name}<extra></extra>"
                                 )
                                 st.plotly_chart(fig_evol_unidades_imp, use_container_width=True)
                                 
@@ -2952,7 +2951,7 @@ with tab3:
             
             # --- GRÁFICO DE EVOLUCIÓN DE UNIDADES ---
             with st.expander("📦 Evolución de Unidades de NEW HOLLAND", expanded=False):
-                st.markdown(f"##### Evolución de Unidades Importadas")
+                st.markdown("##### Evolución de Unidades Importadas")
                 
                 evol_unidades_nh = nh_act.groupby(['año', 'mes', 'mes_nombre', COL_MODELO]).size().reset_index(name='Unidades')
                 evol_unidades_nh['periodo'] = evol_unidades_nh['mes_nombre'] + ' ' + evol_unidades_nh['año'].astype(str)
@@ -2971,7 +2970,7 @@ with tab3:
                         y='Unidades',
                         color=COL_MODELO,
                         markers=True,
-                        title=f"Evolución de Unidades por Modelo",
+                        title="Evolución de Unidades por Modelo",
                         color_discrete_sequence=COLOR_PALETTE
                     )
                     fig_evol_unidades_nh.update_layout(

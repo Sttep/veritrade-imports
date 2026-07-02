@@ -25,14 +25,11 @@ Output:
 """
 
 from __future__ import annotations
-import sys
 from pathlib import Path
 
 import pandas as pd
-import numpy as np
 from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
-from openpyxl.utils import get_column_letter
 
 # ── RUTAS ─────────────────────────────────────────────────────────────────────
 REF_PATH    = Path("inputs/reporte_app_anual.xlsx")

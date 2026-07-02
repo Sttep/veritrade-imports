@@ -1,5 +1,4 @@
 ﻿import pandas as pd
-import glob
 from pathlib import Path
 
 def comprimir_datos():

@@ -175,13 +175,13 @@ def main():
 
             if imps.empty:
                 # Marca sin ningún registro en VT → partida desconocida
-                print(f"    DIAGNOSTICO: marca sin ningun registro en VT.")
-                print(f"    Causa probable: partida arancelaria no descargada.")
-                print(f"    Accion: buscar en Veritrade por nombre de marca o")
-                print(f"            consultar con el importador para identificar partida.")
+                print("    DIAGNOSTICO: marca sin ningun registro en VT.")
+                print("    Causa probable: partida arancelaria no descargada.")
+                print("    Accion: buscar en Veritrade por nombre de marca o")
+                print("            consultar con el importador para identificar partida.")
                 sin_datos_vt.append(marca)
             else:
-                print(f"    Importadores conocidos en VT:")
+                print("    Importadores conocidos en VT:")
 
                 tiene_ceros_sospechosos = False
                 for imp, cnt in imps.items():
@@ -225,25 +225,25 @@ def main():
 
                 if not tiene_ceros_sospechosos and meses_con_brecha >= len(meses_periodo) // 2:
                     print(f"    DIAGNOSTICO: brecha persistente y uniforme en {meses_con_brecha}/{len(meses_periodo)} meses.")
-                    print(f"    Importadores conocidos parecen completos (sin ceros sospechosos).")
-                    print(f"    Causa probable: partida arancelaria no cubierta o rezago metodologico.")
+                    print("    Importadores conocidos parecen completos (sin ceros sospechosos).")
+                    print("    Causa probable: partida arancelaria no cubierta o rezago metodologico.")
                     # Check partidas used
                     partidas_usadas = vt_per[vt_per["marca_normalizada"]==marca]["partida"].value_counts()
                     print(f"    Partidas actuales en VT: {dict(partidas_usadas.head(5))}")
                 elif tiene_ceros_sospechosos:
-                    print(f"    DIAGNOSTICO: importadores con meses sin datos.")
-                    print(f"    Accion: descargar por nombre de importador (ver lista arriba).")
+                    print("    DIAGNOSTICO: importadores con meses sin datos.")
+                    print("    Accion: descargar por nombre de importador (ver lista arriba).")
                 else:
-                    print(f"    DIAGNOSTICO: brecha leve — posible rezago de DUAs recientes.")
-                    print(f"    Accion: re-verificar en 2 semanas antes de descargar.")
+                    print("    DIAGNOSTICO: brecha leve — posible rezago de DUAs recientes.")
+                    print("    Accion: re-verificar en 2 semanas antes de descargar.")
 
         # ── Sección 3: Checklist de descargas ─────────────────────────────────
         print(f"\n{'='*65}")
-        print(f"  CHECKLIST DE DESCARGAS")
+        print("  CHECKLIST DE DESCARGAS")
         print(f"{'='*65}")
 
         if descargas_importador:
-            print(f"\n  POR IMPORTADOR (prioridad alta — ceros sospechosos detectados):")
+            print("\n  POR IMPORTADOR (prioridad alta — ceros sospechosos detectados):")
             seen = set()
             for imp, marca, razon in descargas_importador:
                 if imp not in seen:
@@ -251,22 +251,22 @@ def main():
                     print(f"      Marca afectada: {marca} | Razon: {razon}")
                     seen.add(imp)
         else:
-            print(f"\n  No se requieren descargas por importador.")
+            print("\n  No se requieren descargas por importador.")
 
         if sin_datos_vt:
-            print(f"\n  MARCAS SIN DATOS EN VT (investigar partida):")
+            print("\n  MARCAS SIN DATOS EN VT (investigar partida):")
             for marca in sin_datos_vt:
                 print(f"  [ ] Investigar partida para: {marca}")
-                print(f"      Sugerencia: buscar en Veritrade por nombre de importador conocido")
+                print("      Sugerencia: buscar en Veritrade por nombre de importador conocido")
 
         if not descargas_importador and not sin_datos_vt:
-            print(f"\n  Las brechas detectadas son probablemente rezago metodologico.")
-            print(f"  Recomendacion: re-verificar en 2 semanas.")
+            print("\n  Las brechas detectadas son probablemente rezago metodologico.")
+            print("  Recomendacion: re-verificar en 2 semanas.")
 
     # ── Sección 4: Auto-tabla importadores por marca ───────────────────────────
     print(f"\n{'='*65}")
-    print(f"  IMPORTADORES CONOCIDOS POR MARCA (derivado del parquet actual)")
-    print(f"  Usar como referencia para descargas futuras")
+    print("  IMPORTADORES CONOCIDOS POR MARCA (derivado del parquet actual)")
+    print("  Usar como referencia para descargas futuras")
     print(f"{'='*65}")
 
     marcas_relevantes = df_res[df_res["aap"] >= 30]["marca"].tolist()
