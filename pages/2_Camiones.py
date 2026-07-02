@@ -138,20 +138,28 @@ def normalizar_columnas(df, mapeo):
 
 def normalizar_carroceria(val):
     v = str(val).upper().strip().rstrip(",")
-    if not v or v in ("NAN","NONE",""): return "OTROS"
+    if not v or v in ("NAN","NONE",""):
+        return "OTROS"
     if any(k in v for k in ["TRACTO","REMOLCADOR","CABEZAL","TRACTOREMOLCADOR"]):
         return "TRACTOCAMIÓN"
     if any(k in v for k in ["VOLQUETE","VOLQUETA","DUMPER","TOLVA"]):
         return "VOLQUETE"
     if any(k in v for k in ["CHASIS CAB","CHASIS MOT","CHASIS MOTORIZ"]):
         return "CHASIS CABINA"
-    if "CHASIS" in v and "CABINA" in v:  return "CHASIS CABINA"
-    if "CABINADO" in v:                  return "CHASIS CABINA"
-    if "HORMIGON" in v or "MEZCLAD" in v or "MIXER" in v: return "HORMIGONERA"
-    if "GRÚA" in v or "GRUA" in v or "AUXILIO MECANIC" in v: return "GRÚA"
-    if "CISTERNA" in v or "TANQUE" in v: return "CISTERNA"
-    if "FURGON" in v or "FURGÓN" in v:  return "FURGÓN"
-    if v.startswith("CHASIS"):           return "CHASIS CABINA"
+    if "CHASIS" in v and "CABINA" in v:
+        return "CHASIS CABINA"
+    if "CABINADO" in v:
+        return "CHASIS CABINA"
+    if "HORMIGON" in v or "MEZCLAD" in v or "MIXER" in v:
+        return "HORMIGONERA"
+    if "GRÚA" in v or "GRUA" in v or "AUXILIO MECANIC" in v:
+        return "GRÚA"
+    if "CISTERNA" in v or "TANQUE" in v:
+        return "CISTERNA"
+    if "FURGON" in v or "FURGÓN" in v:
+        return "FURGÓN"
+    if v.startswith("CHASIS"):
+        return "CHASIS CABINA"
     # COMPACTADOR, BARREDERA, MINIBUS, EXPLOSIVOS, PICK UP → OTROS
     return "OTROS"
 
@@ -161,23 +169,36 @@ def clasificar_segmento(pb) -> str:
         pb = float(pb)
     except (TypeError, ValueError):
         return "SIN DATO"
-    if pb <= 0:     return "SIN DATO"
-    if pb <= 6000:  return "LDT 1"
-    if pb <= 10000: return "LDT 2"
-    if pb <= 15000: return "MDT 1"
-    if pb <= 17000: return "MDT 2"
-    if pb <= 25000: return "MDT 3"
-    if pb <= 33000: return "SEMI PESADO"
+    if pb <= 0:
+        return "SIN DATO"
+    if pb <= 6000:
+        return "LDT 1"
+    if pb <= 10000:
+        return "LDT 2"
+    if pb <= 15000:
+        return "MDT 1"
+    if pb <= 17000:
+        return "MDT 2"
+    if pb <= 25000:
+        return "MDT 3"
+    if pb <= 33000:
+        return "SEMI PESADO"
     return "PESADO"
 
 def normalizar_combustible(val):
     v = str(val).upper()
-    if "GNL" in v:                      return "GNL"
-    if "GNV" in v or "GAS NAT" in v:    return "GNV"
-    if "ELECT" in v:                    return "ELÉCTRICO"
-    if "GASOL" in v:                    return "GASOLINA"
-    if "DIESEL" in v or "PETROL" in v:  return "DIESEL"
-    if "HIBRID" in v:                   return "HÍBRIDO"
+    if "GNL" in v:
+        return "GNL"
+    if "GNV" in v or "GAS NAT" in v:
+        return "GNV"
+    if "ELECT" in v:
+        return "ELÉCTRICO"
+    if "GASOL" in v:
+        return "GASOLINA"
+    if "DIESEL" in v or "PETROL" in v:
+        return "DIESEL"
+    if "HIBRID" in v:
+        return "HÍBRIDO"
     return "OTRO"
 
 _TRACCION_MAP = {
@@ -207,7 +228,8 @@ def normalizar_traccion(val):
 
 def calc_var(row, col_act, col_ant):
     ant, act = row[col_ant], row[col_act]
-    if ant == 0: return "+100%" if act > 0 else "0%"
+    if ant == 0:
+        return "+100%" if act > 0 else "0%"
     return f"{((act-ant)/ant*100):+.1f}%"
 
 def destacar_sinotruk(row):
@@ -238,13 +260,17 @@ def render_bloque(titulo, fig, df_tabla, key, nombre="datos"):
         with st.popover("📥", use_container_width=True):
             cx, cy = st.columns(2)
             with cx:
-                try: st.download_button("xlsx", excel_bytes(tuple(raw.itertuples(index=False)), nombre[:30]),
+                try:
+                    st.download_button("xlsx", excel_bytes(tuple(raw.itertuples(index=False)), nombre[:30]),
                                         f"{nombre}.xlsx", key=f"xl_{key}", use_container_width=True)
-                except Exception: pass
+                except Exception:
+                    pass
             with cy:
-                try: st.download_button("csv", descargar_csv(raw), f"{nombre}.csv",
+                try:
+                    st.download_button("csv", descargar_csv(raw), f"{nombre}.csv",
                                         key=f"csv_{key}", use_container_width=True)
-                except Exception: pass
+                except Exception:
+                    pass
     if fig:
         st.plotly_chart(fig, use_container_width=True,
                         config={'displayModeBar':True,'displaylogo':False})
@@ -298,9 +324,11 @@ def cargar():
         ultima = ruta_parquet.stat().st_mtime
     else:
         ruta = Path(__file__).parent.parent / 'data' / 'silver'
-        if not ruta.exists(): ruta = Path('.')
+        if not ruta.exists():
+            ruta = Path('.')
         archivos = sorted(ruta.glob('*_fase1.xlsx'))
-        if not archivos: return pd.DataFrame(), None
+        if not archivos:
+            return pd.DataFrame(), None
 
         frames, ultima = [], 0
         for f in archivos:
@@ -308,8 +336,10 @@ def cargar():
                 d = pd.read_excel(f, sheet_name='estructurado', dtype=str)
                 frames.append(d)
                 ultima = max(ultima, f.stat().st_mtime)
-            except Exception: pass
-        if not frames: return pd.DataFrame(), None
+            except Exception:
+                pass
+        if not frames:
+            return pd.DataFrame(), None
         df = pd.concat(frames, ignore_index=True)
     if 'dua_dam' in df.columns:
         df['_k'] = df.apply(lambda r: f"{r.get('dua_dam','')}|{r.get('vin') or r.get('chasis') or ''}", axis=1)
@@ -353,13 +383,15 @@ def cargar():
         df['año'] = df['año'].apply(lambda x: int(x) if pd.notna(x) else pd.NA).astype('Int64')
 
     for col in ['categoria_maquinaria','marca_norm','grupo_importador']:
-        if col in df.columns: df[col] = df[col].astype('category')
+        if col in df.columns:
+            df[col] = df[col].astype('category')
 
     return df, ultima
 
 df, ULTIMA_ACT = cargar()
 if df is None or df.empty:
-    st.error("No se encontraron archivos *_fase1.xlsx en outputs/"); st.stop()
+    st.error("No se encontraron archivos *_fase1.xlsx en outputs/")
+    st.stop()
 
 COL_MARCA = 'marca_norm' if 'marca_norm' in df.columns else 'marca'
 COL_MODELO= 'modelo'
@@ -379,15 +411,19 @@ with col_desde:
     st.markdown('<div style="font-size:0.6rem;color:#888;font-weight:700;margin-bottom:2px;">📅 Desde</div>',
                 unsafe_allow_html=True)
     c1, c2 = st.columns([1,1.1], gap="small")
-    with c1: mes_ini = st.selectbox("Mi", MESES_NOMBRES, index=0, label_visibility="collapsed", key="mes_ini")
-    with c2: año_ini = st.selectbox("Ai", años_disp, index=0, label_visibility="collapsed", key="año_ini")
+    with c1:
+        mes_ini = st.selectbox("Mi", MESES_NOMBRES, index=0, label_visibility="collapsed", key="mes_ini")
+    with c2:
+        año_ini = st.selectbox("Ai", años_disp, index=0, label_visibility="collapsed", key="año_ini")
 
 with col_hasta:
     st.markdown('<div style="font-size:0.6rem;color:#888;font-weight:700;margin-bottom:2px;">📅 Hasta</div>',
                 unsafe_allow_html=True)
     c3, c4 = st.columns([1,1.1], gap="small")
-    with c3: mes_fin = st.selectbox("Mf", MESES_NOMBRES, index=len(MESES_NOMBRES)-1, label_visibility="collapsed", key="mes_fin")
-    with c4: año_fin = st.selectbox("Af", años_disp, index=len(años_disp)-1, label_visibility="collapsed", key="año_fin")
+    with c3:
+        mes_fin = st.selectbox("Mf", MESES_NOMBRES, index=len(MESES_NOMBRES)-1, label_visibility="collapsed", key="mes_fin")
+    with c4:
+        año_fin = st.selectbox("Af", años_disp, index=len(años_disp)-1, label_visibility="collapsed", key="año_fin")
 
 with col_titulo:
     col_txt, col_toggle = st.columns([2,1])
@@ -408,7 +444,8 @@ with col_titulo:
 with col_btn:
     st.markdown('<div style="height:32px"></div>', unsafe_allow_html=True)
     if st.button("🔄", use_container_width=True, help="Actualizar datos"):
-        st.cache_data.clear(); st.rerun()
+        st.cache_data.clear()
+        st.rerun()
 
 # ── FECHAS — FIX: int() explícito para monthrange ─────────────────────────────
 mes_ini_n   = MESES_NOMBRES.index(mes_ini) + 1
@@ -519,7 +556,8 @@ if ins:
     st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
 if df_actual.empty:
-    st.warning("⚠️ Sin datos para el período seleccionado."); st.stop()
+    st.warning("⚠️ Sin datos para el período seleccionado.")
+    st.stop()
 
 año_actual = año_fin_int
 
@@ -898,9 +936,11 @@ with tab2:
                       if df_actual[df_actual[COL_ACTOR]==a].shape[0] >= min_uds]
         if len(actores_hh) >= 2:
             ca, cb = st.columns(2)
-            with ca: a_a = st.selectbox(f"{label_a} A", actores_hh, index=0, key="h2h_a")
-            with cb: a_b = st.selectbox(f"{label_a} B", actores_hh,
-                                         index=min(1,len(actores_hh)-1), key="h2h_b")
+            with ca:
+                a_a = st.selectbox(f"{label_a} A", actores_hh, index=0, key="h2h_a")
+            with cb:
+                a_b = st.selectbox(f"{label_a} B", actores_hh,
+                                    index=min(1,len(actores_hh)-1), key="h2h_b")
             if a_a != a_b:
                 df_a = df_actual[df_actual[COL_ACTOR]==a_a]
                 df_b = df_actual[df_actual[COL_ACTOR]==a_b]
@@ -916,7 +956,8 @@ with tab2:
                 u_a, u_b = len(df_a), len(df_b)
                 p_a = df_a[col_pc].mean() if col_pc and col_pc in df_a.columns else None
                 p_b = df_b[col_pc].mean() if col_pc and col_pc in df_b.columns else None
-                s_a = u_a/total_act*100; s_b = u_b/total_act*100
+                s_a = u_a/total_act*100
+                s_b = u_b/total_act*100
 
                 st.markdown("##### 📊 Métricas Comparativas")
                 mm1, mm2 = st.columns(2)
@@ -932,7 +973,8 @@ with tab2:
                     <div style="font-size:0.75rem;color:#888">📊 Market Share</div></div>""",
                     unsafe_allow_html=True)
                 with mm2:
-                    du = u_b-u_a; dp = (p_b-p_a) if p_a and p_b else None
+                    du = u_b-u_a
+                    dp = (p_b-p_a) if p_a and p_b else None
                     ds = s_b-s_a
                     cu = "#4CAF50" if du>0 else "#FF5252"
                     cp_c = "#4CAF50" if dp and dp<0 else "#FF5252"
