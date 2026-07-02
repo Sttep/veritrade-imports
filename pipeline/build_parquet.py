@@ -19,6 +19,13 @@ import pandas as pd
 ROOT     = Path(__file__).resolve().parent.parent
 GOLD_DIR = ROOT / "data" / "gold"
 
+# Partidas no vehiculares (autos/SUV) que a veces se cuelan en los exports de
+# Veritrade filtrados por importador/rango — no son camiones, se excluyen.
+# Mismo criterio que pipeline/silver.py::PARTIDAS_EXCLUIDAS (aca se aplica de
+# nuevo por si el parquet se regenera desde gold/*_normalizado.xlsx ya
+# existentes, generados antes de que silver.py filtrara esto en origen).
+PARTIDAS_EXCLUIDAS = {"8703229020", "8703210010"}
+
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -52,6 +59,14 @@ def main() -> int:
 
     out = pd.concat(frames, ignore_index=True)
     print(f"\nTotal antes de dedup: {len(out):,} filas")
+
+    if "partida" in out.columns:
+        antes = len(out)
+        out = out[~out["partida"].astype(str).isin(PARTIDAS_EXCLUIDAS)].copy()
+        excluidas = antes - len(out)
+        if excluidas:
+            print(f"Excluidas {excluidas:,} filas por partida no vehicular (autos): "
+                  f"{sorted(PARTIDAS_EXCLUIDAS)}")
 
     if "dua_dam" in out.columns:
         vin_col = next((c for c in ("vin", "chasis") if c in out.columns), None)

@@ -29,6 +29,10 @@ INPUTS_DIR  = ROOT / "data" / "bronze"
 OUTPUTS_DIR = ROOT / "data" / "silver"
 CONFIG_PATH = ROOT / "configuracion.xlsx"
 
+# Partidas no vehiculares (autos/SUV) que a veces se cuelan en los exports de
+# Veritrade filtrados por importador/rango — no son camiones, se excluyen.
+PARTIDAS_EXCLUIDAS = {"8703229020", "8703210010"}
+
 # Códigos que Veritrade usa dentro de "Descripcion Comercial"
 CODES: dict[str, tuple[str, str]] = {
     "MARCA":        ("marca_declarada",  "text"),
@@ -414,6 +418,10 @@ def normalizar_carroceria(valor: str | None, cfg: Config) -> str | None:
 
 
 def debe_excluir(row: dict, cfg: Config) -> tuple[bool, str]:
+    partida = str(row.get("partida") or "").strip()
+    if partida in PARTIDAS_EXCLUIDAS:
+        return True, f"partida_no_vehicular={partida}"
+
     desc = str(row.get("_descripcion") or "").upper().strip()
     m_cat = re.match(r"^(L[1-6])\s*[,\s]", desc)
     if m_cat:
