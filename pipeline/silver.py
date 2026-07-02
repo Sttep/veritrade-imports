@@ -29,9 +29,37 @@ INPUTS_DIR  = ROOT / "data" / "bronze"
 OUTPUTS_DIR = ROOT / "data" / "silver"
 CONFIG_PATH = ROOT / "configuracion.xlsx"
 
-# Partidas no vehiculares (autos/SUV) que a veces se cuelan en los exports de
-# Veritrade filtrados por importador/rango — no son camiones, se excluyen.
-PARTIDAS_EXCLUIDAS = {"8703229020", "8703210010"}
+# Partidas no vehiculares (autos/SUV, maquinaria de construccion, montacargas,
+# juguetes a escala) que a veces se cuelan en los exports de Veritrade filtrados
+# por importador/rango — no son camiones, se excluyen. Cada codigo fue verificado
+# linea por linea contra la Descripcion Comercial cruda antes de agregarse aqui.
+# NOTA: 8716310000 (remolque cisterna) queda afuera a proposito — la unica fila
+# con ese codigo es un camion cisterna FAW real (N3, PB:41000) mal etiquetado
+# por Veritrade, no un remolque.
+PARTIDAS_EXCLUIDAS = {
+    "8703229020", "8703210010",  # autos/SUV (ya excluidos previamente)
+    "8703239020", "8703401000", "8703409020", "8703809020",
+    "8703331000", "8703231000", "8703221000", "8703329020",  # autos/SUV (M1)
+    "8429520000", "8429510000", "8429590000",
+    "8429200000", "8429400000",                              # maquinaria construccion
+    "8427100000", "8427200000", "8428909000",                # montacargas/plataformas
+    "9503003000",                                             # juguetes a escala
+}
+
+# Vans/furgones derivados de plataformas de pasajeros o comerciales ligeras que
+# viajan bajo partidas legitimas de camion liviano (8704211090/8704311090) y por
+# eso no se pueden filtrar solo por partida — se filtran por marca+modelo.
+# marca aqui es la ya normalizada contra configuracion.xlsx (hoja "marcas").
+VANS_EXCLUIDAS: dict[str, list[str]] = {
+    "CHEVROLET":     ["N400"],
+    "FIAT":          ["FIORINO"],
+    "MAXUS":         ["C-100", "C 100", "EV30", "V80", "V90"],
+    "DFSK":          ["C35"],
+    "WULING":        ["RONGGUANG"],
+    "HYUNDAI":       ["STARIA"],
+    "TOYOTA":        ["HIACE"],
+    "MERCEDES BENZ": ["SPRINTER"],
+}
 
 # Códigos que Veritrade usa dentro de "Descripcion Comercial"
 CODES: dict[str, tuple[str, str]] = {
@@ -421,6 +449,12 @@ def debe_excluir(row: dict, cfg: Config) -> tuple[bool, str]:
     partida = str(row.get("partida") or "").strip()
     if partida in PARTIDAS_EXCLUIDAS:
         return True, f"partida_no_vehicular={partida}"
+
+    marca = str(row.get("marca_normalizada") or "").upper().strip()
+    modelo = str(row.get("modelo") or "").upper().strip()
+    for patron in VANS_EXCLUIDAS.get(marca, []):
+        if patron in modelo:
+            return True, f"van_excluida={marca} {patron}"
 
     desc = str(row.get("_descripcion") or "").upper().strip()
     m_cat = re.match(r"^(L[1-6])\s*[,\s]", desc)

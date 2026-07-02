@@ -19,12 +19,37 @@ import pandas as pd
 ROOT     = Path(__file__).resolve().parent.parent
 GOLD_DIR = ROOT / "data" / "gold"
 
-# Partidas no vehiculares (autos/SUV) que a veces se cuelan en los exports de
-# Veritrade filtrados por importador/rango — no son camiones, se excluyen.
-# Mismo criterio que pipeline/silver.py::PARTIDAS_EXCLUIDAS (aca se aplica de
-# nuevo por si el parquet se regenera desde gold/*_normalizado.xlsx ya
-# existentes, generados antes de que silver.py filtrara esto en origen).
-PARTIDAS_EXCLUIDAS = {"8703229020", "8703210010"}
+# Partidas no vehiculares (autos/SUV, maquinaria de construccion, montacargas,
+# juguetes a escala) que a veces se cuelan en los exports de Veritrade filtrados
+# por importador/rango — no son camiones, se excluyen. Mismo criterio que
+# pipeline/silver.py::PARTIDAS_EXCLUIDAS (aca se aplica de nuevo por si el
+# parquet se regenera desde gold/*_normalizado.xlsx ya existentes, generados
+# antes de que silver.py filtrara esto en origen).
+# NOTA: 8716310000 (remolque cisterna) queda afuera a proposito — ver comentario
+# en silver.py, esa unica fila es un camion cisterna FAW real mal etiquetado.
+PARTIDAS_EXCLUIDAS = {
+    "8703229020", "8703210010",
+    "8703239020", "8703401000", "8703409020", "8703809020",
+    "8703331000", "8703231000", "8703221000", "8703329020",
+    "8429520000", "8429510000", "8429590000",
+    "8429200000", "8429400000",
+    "8427100000", "8427200000", "8428909000",
+    "9503003000",
+}
+
+# Vans/furgones sobre partidas legitimas de camion liviano — mismo criterio que
+# pipeline/silver.py::VANS_EXCLUIDAS, aplicado aca sobre marca_norm/modelo
+# (columnas ya normalizadas por el LLM en gold.py).
+VANS_EXCLUIDAS: dict[str, list[str]] = {
+    "CHEVROLET":     ["N400"],
+    "FIAT":          ["FIORINO"],
+    "MAXUS":         ["C-100", "C 100", "EV30", "V80", "V90"],
+    "DFSK":          ["C35"],
+    "WULING":        ["RONGGUANG"],
+    "HYUNDAI":       ["STARIA"],
+    "TOYOTA":        ["HIACE"],
+    "MERCEDES BENZ": ["SPRINTER"],
+}
 
 
 def main() -> int:
@@ -65,8 +90,20 @@ def main() -> int:
         out = out[~out["partida"].astype(str).isin(PARTIDAS_EXCLUIDAS)].copy()
         excluidas = antes - len(out)
         if excluidas:
-            print(f"Excluidas {excluidas:,} filas por partida no vehicular (autos): "
-                  f"{sorted(PARTIDAS_EXCLUIDAS)}")
+            print(f"Excluidas {excluidas:,} filas por partida no vehicular "
+                  f"(autos/maquinaria/montacargas/juguetes): {sorted(PARTIDAS_EXCLUIDAS)}")
+
+    if "marca_norm" in out.columns and "modelo" in out.columns:
+        marca_up = out["marca_norm"].astype(str).str.upper().str.strip()
+        modelo_up = out["modelo"].astype(str).str.upper()
+        mask_van = pd.Series(False, index=out.index)
+        for marca, patrones in VANS_EXCLUIDAS.items():
+            m = marca_up == marca
+            m2 = modelo_up.str.contains("|".join(patrones), regex=True, na=False)
+            mask_van |= (m & m2)
+        if mask_van.any():
+            print(f"Excluidas {int(mask_van.sum()):,} filas por van sobre partida de camion liviano")
+        out = out[~mask_van].copy()
 
     if "dua_dam" in out.columns:
         vin_col = next((c for c in ("vin", "chasis") if c in out.columns), None)

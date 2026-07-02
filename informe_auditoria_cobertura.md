@@ -446,3 +446,45 @@ GLOBAL: 11,357 / 12,462 = 91.1%  ✅ (sobre umbral 88%)
 | SANY | SANY PERU SOCIEDAD ANONIMA CERRADA · ANDES MOTOR PERU S.A.C. |
 | CAMC | SAN BARTOLOME S.A. |
 | XCMG | XCMG PERU S.A.C. |
+
+---
+
+## Filtro de partidas no vehiculares y vans — 2 de julio de 2026
+
+Se detectó, a raíz de una revisión del segmento de peso LDT1 del dashboard, que `camiones.parquet`
+arrastraba filas que no son camiones:
+
+- **Autos/SUV (categoría M1)**: Audi Q5/A5/RS3, Cupra León, Ford Fiesta, Toyota Land Cruiser, VW Tera,
+  Maxus (SUV/multipropósito) — bajo 8 partidas 8703xx no cubiertas por la exclusión previa
+  (`8703229020`/`8703210010`).
+- **Maquinaria de construcción**: excavadoras/motoniveladoras Sany, rodillo compactador Shantui —
+  partidas 8429xx, sin marca ni carrocería parseada (cero valor para el dataset).
+- **Montacargas/plataformas**: Sany (montacarga), Genie (plataforma articulada) — partidas 8427xx/8428xx.
+- **Juguetes a escala**: modelos de juguete de Zoomlion/Sinotruk (`JUGUETE DE RUEDAS... Modelo a escala
+  de excavadora/mixer`) — partida `9503003000`. Estas filas explicaban los pesos absurdos (39–238 kg)
+  que aparecían en el segmento LDT1.
+- **Vans reales sobre partidas legítimas de camión liviano** (8704211090/8704311090, no filtrables por
+  partida): Chevrolet N400, Fiat Fiorino, Maxus C-100/EV30/V80/V90, DFSK C35, Wuling Rongguang, Hyundai
+  Staria, Toyota Hiace, Mercedes-Benz Sprinter.
+
+Cada partida se verificó línea por línea contra `_descripcion` cruda antes de excluirla (no solo
+agregados). **Excepción encontrada:** `8716310000` (nominalmente remolque cisterna) tiene una sola fila
+que es un camión cisterna FAW real (`N3, PB:41000, CU:25820`) mal etiquetado por Veritrade — se dejó
+fuera de la exclusión a propósito.
+
+**Implementación**: `PARTIDAS_EXCLUIDAS` ampliada de 2 a 19 códigos + nuevo diccionario `VANS_EXCLUIDAS`
+(marca→patrones de modelo) en `pipeline/silver.py` (fuente, futuras descargas) y `pipeline/build_parquet.py`
+(aplicado también sobre los gold xlsx ya existentes, sin re-correr el LLM).
+
+**Resultado tras regenerar `camiones.parquet`:**
+- 304,251 filas leídas de los 28 xlsx gold → 1,509 excluidas por partida + 316 por van → 60,811 filas
+  finales tras dedup (vs. 61,503 antes del fix).
+- Segmento LDT1 del dashboard: 4,790 → 4,346 filas; Sany/Zoomlion/Xcmg/Sitrak/Audi/Cupra desaparecen
+  por completo del segmento.
+- Cobertura vs AAP (jun-2026, `scripts/validar_cobertura.py --mes 6 --anio 2026`): GLOBAL 117.0%
+  (12,462 AAP vs 14,580 VT), sin caída atribuible al cambio — SANY/ZOOMLION/XCMG mantienen cobertura
+  sana porque sus filas de camión/hormigonera legítimas no se tocaron, solo sus filas de maquinaria
+  y juguetes.
+- `pages/2_Camiones.py::normalizar_carroceria()` no distingue "SUV" (cae en el catch-all "OTROS"), por
+  lo que antes del fix esos autos se sumaban a los totales del dashboard bajo esa categoría. Se resuelve
+  en el origen (parquet limpio) sin necesidad de tocar el dashboard.
