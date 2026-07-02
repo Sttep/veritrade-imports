@@ -200,12 +200,12 @@ def cargar_diccionarios() -> dict:
 
     diccionarios["exclusiones_set"] = set(
         diccionarios["exclusiones"]
-        .loc[diccionarios["exclusiones"]["es_exclusion_total"] == True, "termino"]
+        .loc[diccionarios["exclusiones"]["es_exclusion_total"], "termino"]
         .str.upper()
     )
     diccionarios["exclusiones_parcial_set"] = set(
         diccionarios["exclusiones"]
-        .loc[diccionarios["exclusiones"]["es_exclusion_total"] == False, "termino"]
+        .loc[~diccionarios["exclusiones"]["es_exclusion_total"], "termino"]
         .str.upper()
     )
 
@@ -440,7 +440,7 @@ def etapa2_parseo_vectorizado(df: pd.DataFrame, diccionarios: dict) -> pd.DataFr
             s = str(x).upper().replace('KW', '').replace('HP', '').replace(',', '.')
             try:
                 return float(s.split('@')[0].strip())
-            except:
+            except Exception:
                 return None
         df.loc[mask, "potencia_hp"] = df.loc[mask, "potencia"].apply(extraer_hp)
  

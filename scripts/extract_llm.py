@@ -19,10 +19,10 @@ def load_dotenv(path=".env"):
         k, _, val = line.partition("=")
         os.environ.setdefault(k.strip(), val.strip().strip('"').strip("'"))
 
-import pandas as pd
+import pandas as pd  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts.llm import report, sampler, validate, vocab as vocab_mod
-from scripts.llm.cache import Cache, text_key
+from scripts.llm import report, sampler, validate, vocab as vocab_mod  # noqa: E402
+from scripts.llm.cache import Cache, text_key  # noqa: E402
 
 INPUTS_DIR, OUTPUTS_DIR = "inputs", "outputs"
 

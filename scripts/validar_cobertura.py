@@ -158,7 +158,6 @@ def main():
         print(f"  DIAGNOSTICO — {len(marcas_gap)} marca(s) con cobertura < {umbral}%")
         print(f"{'='*65}")
 
-        descargas_partida   = []  # (partida, razon)
         descargas_importador = []  # (importador, marca, razon)
         sin_datos_vt = []
 

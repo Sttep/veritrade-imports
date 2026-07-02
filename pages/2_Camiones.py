@@ -2,7 +2,7 @@
 dashboard_camiones_v2.py — Dashboard Importaciones Camiones Perú
 Uso: streamlit run dashboard_camiones_v2.py
 """
-import warnings; warnings.filterwarnings("ignore")
+import warnings
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -12,6 +12,8 @@ from calendar import monthrange
 from pathlib import Path
 import io
 import re
+
+warnings.filterwarnings("ignore")
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Importaciones de Camiones - Dashboard",
@@ -238,11 +240,11 @@ def render_bloque(titulo, fig, df_tabla, key, nombre="datos"):
             with cx:
                 try: st.download_button("xlsx", excel_bytes(tuple(raw.itertuples(index=False)), nombre[:30]),
                                         f"{nombre}.xlsx", key=f"xl_{key}", use_container_width=True)
-                except: pass
+                except Exception: pass
             with cy:
                 try: st.download_button("csv", descargar_csv(raw), f"{nombre}.csv",
                                         key=f"csv_{key}", use_container_width=True)
-                except: pass
+                except Exception: pass
     if fig:
         st.plotly_chart(fig, use_container_width=True,
                         config={'displayModeBar':True,'displaylogo':False})
@@ -306,7 +308,7 @@ def cargar():
                 d = pd.read_excel(f, sheet_name='estructurado', dtype=str)
                 frames.append(d)
                 ultima = max(ultima, f.stat().st_mtime)
-            except: pass
+            except Exception: pass
         if not frames: return pd.DataFrame(), None
         df = pd.concat(frames, ignore_index=True)
     if 'dua_dam' in df.columns:

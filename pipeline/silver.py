@@ -117,8 +117,12 @@ TRANSMISION_NORM = {
     "AT":"Automático","MT":"Mecánico","M/T":"Mecánico","A/T":"Automático",
 }
 
-C_NEGRO = "1A1A1A"; C_AMARILLO = "F5C400"; C_VERDE = "1A7A40"
-C_ROJO  = "B03020"; C_GRIS1 = "F5F3EC"; C_GRIS2 = "E8E6DC"
+C_NEGRO = "1A1A1A"
+C_AMARILLO = "F5C400"
+C_VERDE = "1A7A40"
+C_ROJO = "B03020"
+C_GRIS1 = "F5F3EC"
+C_GRIS2 = "E8E6DC"
 
 
 # ══════════════════════════════════════════════════════════════════════════════

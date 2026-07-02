@@ -36,9 +36,9 @@ def load_dotenv(path=".env"):
         os.environ.setdefault(k.strip(), val.strip().strip('"').strip("'"))
 
 
-import pandas as pd
-from pipeline.llm import report, sampler, validate, vocab as vocab_mod
-from pipeline.llm.cache import Cache, text_key
+import pandas as pd  # noqa: E402
+from pipeline.llm import report, sampler, validate, vocab as vocab_mod  # noqa: E402
+from pipeline.llm.cache import Cache, text_key  # noqa: E402
 
 BRONZE_DIR = ROOT / "data" / "bronze"
 SILVER_DIR = ROOT / "data" / "silver"
