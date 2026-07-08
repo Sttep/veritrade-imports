@@ -88,7 +88,7 @@ def process_file(bronze_path: Path, silver_path: Path, gold_dir: Path, stem: str
     pendientes = {}
     for _, r in sub.iterrows():
         k = r["_tkey"]
-        confianza = str(r.get("confianza_clasificacion", "")).strip().upper()
+        confianza = str(r.get("confianza", "")).strip().upper()
         if (confianza != "ALTA"
                 and k not in cache
                 and k not in pendientes
@@ -123,19 +123,26 @@ def process_file(bronze_path: Path, silver_path: Path, gold_dir: Path, stem: str
     fecha = _dt.date.today().isoformat()
 
     for _, r in sub.iterrows():
-        confianza = str(r.get("confianza_clasificacion", "")).strip().upper()
+        confianza = str(r.get("confianza", "")).strip().upper()
 
         if confianza == "ALTA":
+            # Atajo deterministico: silver.py ya normalizo marca+carroceria contra
+            # configuracion.xlsx con confianza suficiente, no hace falta el LLM.
+            # Schema de camiones (no el de maquinaria original de este bloque):
+            # silver no produce tren_rodaje/categoria_maquinaria/subcategoria, se
+            # dejan en None pero presentes para que el filtro de "revisar" mas abajo
+            # no rompa por columnas faltantes.
             rec = {
-                "marca_raw_llm": None, "marca_norm": r.get("marca"),
+                "marca_raw_llm": None, "marca_norm": r.get("marca_normalizada"),
                 "marca_in_vocab": True, "marca_sugerencia": None,
                 "modelo_raw_llm": None, "modelo_match": r.get("modelo"),
                 "modelo_score": 100.0, "modelo_flag": "reglas_alta",
-                "tren_rodaje_norm": r.get("tren_rodaje"), "tren_rodaje_valido": True,
+                "traccion_norm": r.get("traccion"), "traccion_valido": True,
                 "combustible_norm": r.get("combustible"), "combustible_valido": True,
-                "categoria_maquinaria_norm": r.get("categoria_maquinaria"),
-                "categoria_maquinaria_valido": True,
-                "subcategoria_norm": r.get("subcategoria"),
+                "clasificacion_norm": r.get("clasificacion"), "clasificacion_valido": True,
+                "caja_norm": r.get("caja"), "caja_valido": True,
+                "tren_rodaje_norm": None, "tren_rodaje_valido": True,
+                "categoria_maquinaria_norm": None, "categoria_maquinaria_valido": True,
                 "fuente": "Reglas (Silver)",
             }
         else:
