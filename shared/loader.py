@@ -57,13 +57,13 @@ def cargar_maquinaria() -> tuple[pd.DataFrame, float | None, bool]:
         df = pd.read_parquet(ruta_parquet)
         ultima = ruta_parquet.stat().st_mtime
     else:
-        archivos = sorted(SILVER_DIR.glob("*_normalizado.xlsx"))
+        archivos = sorted(GOLD_DIR.glob("*_normalizado.parquet"))
         if not archivos:
             return pd.DataFrame(), None, False
         dfs = []
         for f in archivos:
             try:
-                dfs.append(pd.read_excel(f, sheet_name="normalizado_final"))
+                dfs.append(pd.read_parquet(f))
             except Exception:
                 pass
         if not dfs:
@@ -109,13 +109,13 @@ def cargar_camiones() -> tuple[pd.DataFrame, float | None]:
         df = pd.read_parquet(ruta_parquet)
         ultima = ruta_parquet.stat().st_mtime
     else:
-        archivos = sorted(SILVER_DIR.glob("*_fase1.xlsx"))
+        archivos = sorted(SILVER_DIR.glob("*_fase1.parquet"))
         if not archivos:
             return pd.DataFrame(), None
         frames, ultima = [], 0
         for f in archivos:
             try:
-                d = pd.read_excel(f, sheet_name="estructurado", dtype=str)
+                d = pd.read_parquet(f)
                 frames.append(d)
                 ultima = max(ultima, f.stat().st_mtime)
             except Exception:

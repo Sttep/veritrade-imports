@@ -343,14 +343,14 @@ def cargar():
         ruta = Path(__file__).parent.parent / 'data' / 'silver'
         if not ruta.exists():
             ruta = Path('.')
-        archivos = sorted(ruta.glob('*_fase1.xlsx'))
+        archivos = sorted(ruta.glob('*_fase1.parquet'))
         if not archivos:
             return pd.DataFrame(), None
 
         frames, ultima = [], 0
         for f in archivos:
             try:
-                d = pd.read_excel(f, sheet_name='estructurado', dtype=str)
+                d = pd.read_parquet(f)
                 frames.append(d)
                 ultima = max(ultima, f.stat().st_mtime)
             except Exception:
@@ -416,7 +416,7 @@ def cargar():
 
 df, ULTIMA_ACT = cargar()
 if df is None or df.empty:
-    st.error("No se encontraron archivos *_fase1.xlsx en outputs/")
+    st.error("No se encontraron archivos *_fase1.parquet en data/silver/")
     st.stop()
 
 COL_MARCA = 'marca_norm' if 'marca_norm' in df.columns else 'marca'

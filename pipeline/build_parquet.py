@@ -1,6 +1,6 @@
-"""pipeline/build_parquet.py — Consolida Gold xlsx → camiones.parquet
+"""pipeline/build_parquet.py — Consolida Gold parquet → camiones.parquet
 
-Lee todos los *_normalizado.xlsx de data/gold/, los une, deduplica por
+Lee todos los *_normalizado.parquet de data/gold/, los une, deduplica por
 DUA+VIN y escribe data/gold/camiones.parquet listo para el dashboard.
 
 Uso:
@@ -58,20 +58,20 @@ def main() -> int:
                     help="Excluir archivos cuyo nombre contenga estos patrones")
     args = ap.parse_args()
 
-    archivos = sorted(GOLD_DIR.glob("*_normalizado.xlsx"))
+    archivos = sorted(GOLD_DIR.glob("*_normalizado.parquet"))
     if args.exclude:
         archivos = [f for f in archivos
                     if not any(p.lower() in f.name.lower() for p in args.exclude)]
 
     if not archivos:
-        print("❌ No se encontraron archivos *_normalizado.xlsx en data/gold/")
+        print("❌ No se encontraron archivos *_normalizado.parquet en data/gold/")
         return 1
 
     print(f"Leyendo {len(archivos)} archivos gold...\n")
     frames = []
     for f in archivos:
         try:
-            df = pd.read_excel(f, sheet_name="normalizado_final", dtype=str)
+            df = pd.read_parquet(f)
             df["_fuente"] = f.stem
             frames.append(df)
             print(f"  ✓ {f.name}  ({len(df):,} filas)")

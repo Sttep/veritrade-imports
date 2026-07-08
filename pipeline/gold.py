@@ -2,7 +2,7 @@
 pipeline/gold.py  —  FASE 2 (Silver → Gold): Normalización LLM híbrida
 ═══════════════════════════════════════════════════════════════════════
 
-Lee los archivos estructurados de data/silver/ (_fase1.xlsx),
+Lee los archivos estructurados de data/silver/ (_fase1.parquet),
 envía los registros de baja confianza a DeepSeek y escribe
 los resultados normalizados en data/gold/.
 
@@ -39,6 +39,7 @@ def load_dotenv(path=".env"):
 import pandas as pd  # noqa: E402
 from pipeline.llm import report, sampler, validate, vocab as vocab_mod  # noqa: E402
 from pipeline.llm.cache import Cache, text_key  # noqa: E402
+from pipeline.parquet_io import write_parquet_str_safe  # noqa: E402
 
 BRONZE_DIR = ROOT / "data" / "bronze"
 SILVER_DIR = ROOT / "data" / "silver"
@@ -46,7 +47,7 @@ GOLD_DIR   = ROOT / "data" / "gold"
 
 
 def load_silver_data(silver_path: Path) -> pd.DataFrame:
-    df = pd.read_excel(silver_path, sheet_name="estructurado")
+    df = pd.read_parquet(silver_path)
     if "_descripcion" not in df.columns:
         df["_descripcion"] = ""
     df["row_key"] = df.apply(
@@ -67,7 +68,7 @@ def make_on_batch():
     return on_batch
 
 
-def process_file(bronze_path: Path, silver_path: Path, out_path: Path,
+def process_file(bronze_path: Path, silver_path: Path, gold_dir: Path, stem: str,
                  v, cache, args) -> bool:
     print(f"\n=== {bronze_path.name} ===")
 
@@ -160,6 +161,15 @@ def process_file(bronze_path: Path, silver_path: Path, out_path: Path,
         from pipeline.llm.client import Stats
         stats = Stats()
 
+    llm_rows = out[out["fuente"].astype(str).str.startswith("LLM_Hibrido", na=False)] \
+        if "fuente" in out.columns else pd.DataFrame()
+    if not llm_rows.empty:
+        fill_rate = llm_rows["marca_norm"].notna().mean()
+        if fill_rate < 0.5:
+            print(f"\n  🚨🚨🚨 ALERTA: solo {fill_rate*100:.1f}% de las {len(llm_rows):,} filas "
+                  f"pasadas por LLM tienen marca_norm — posible fallo masivo de la API "
+                  f"(revisar conexión/errores, NO confiar en este archivo hasta confirmar).")
+
     try:
         rep = report.build(out, stats)
         print("\n=== REPORTE ===")
@@ -191,15 +201,22 @@ def process_file(bronze_path: Path, silver_path: Path, out_path: Path,
             .reset_index()
         )
 
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with pd.ExcelWriter(out_path, engine="openpyxl") as xw:
-        out.to_excel(xw, sheet_name="normalizado_final", index=False)
-        if not revisar.empty:
-            revisar.to_excel(xw, sheet_name="_revisar_final", index=False)
-        if not vocab_nuevo.empty:
-            vocab_nuevo.to_excel(xw, sheet_name="_vocab_nuevo", index=False)
-        if not rep.empty:
-            rep.to_excel(xw, sheet_name="_reporte", index=False)
+    gold_dir.mkdir(parents=True, exist_ok=True)
+    out_path = gold_dir / f"{stem}_normalizado.parquet"
+    qa_path  = gold_dir / f"{stem}_qa.xlsx"
+
+    write_parquet_str_safe(out, out_path)
+
+    if not revisar.empty or not vocab_nuevo.empty or not rep.empty:
+        with pd.ExcelWriter(qa_path, engine="openpyxl") as xw:
+            if not revisar.empty:
+                revisar.to_excel(xw, sheet_name="_revisar_final", index=False)
+            if not vocab_nuevo.empty:
+                vocab_nuevo.to_excel(xw, sheet_name="_vocab_nuevo", index=False)
+            if not rep.empty:
+                rep.to_excel(xw, sheet_name="_reporte", index=False)
+    elif qa_path.exists():
+        qa_path.unlink()
 
     print(f"✅ Gold escrito: {out_path.relative_to(ROOT)} ({len(out)} filas)")
     return True
@@ -243,12 +260,11 @@ def main():
     cache = Cache()
     ok = 0
     for raw in srcs:
-        silver = silver_dir / f"{raw.stem}_fase1.xlsx"
+        silver = silver_dir / f"{raw.stem}_fase1.parquet"
         if not silver.exists():
             print(f"⚠️ Falta {silver}. Corre primero pipeline/silver.py.", file=sys.stderr)
             continue
-        out = gold_dir / f"{raw.stem}_normalizado.xlsx"
-        if process_file(raw, silver, out, v, cache, args):
+        if process_file(raw, silver, gold_dir, raw.stem, v, cache, args):
             ok += 1
 
     print(f"\n🎉 Listo: {ok}/{len(srcs)} archivos procesados en Gold.")
