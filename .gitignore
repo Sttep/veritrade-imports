@@ -3,8 +3,11 @@
 # Bronze y Silver: datos crudos y estructurados (privados)
 data/bronze/*.xlsx
 data/silver/*.xlsx
-# Parquets Gold sí se versionan (servidos por Streamlit Cloud)
+data/silver/*.parquet
+# Parquets Gold sí se versionan (servidos por Streamlit Cloud), pero los
+# intermedios por archivo (*_normalizado.parquet) no son el consolidado final.
 !data/gold/*.parquet
+data/gold/*_normalizado.parquet
 
 # Archivos de ejemplo nombrados explícitamente
 !data/ejemplo.xlsx
