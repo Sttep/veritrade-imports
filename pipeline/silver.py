@@ -120,13 +120,14 @@ CODES: dict[str, tuple[str, str]] = {
     "CAJA":         ("caja",             "text"),
     "VE":           ("version",          "text"),
     "CH/VIN":       ("vin",              "text"),
+    "MC":           ("marca_chasis",     "text"),
     "SN": ("_", "text"), "NR": ("_", "text"), "AR": ("_", "text"),
     "SD": ("_", "text"), "SP": ("_", "text"), "BC": ("_", "text"),
     "PP": ("_", "text"), "TE": ("_", "text"), "ACD": ("_", "text"),
     "LET": ("_", "text"), "ARA": ("_", "text"), "CLM": ("_", "text"),
     "BSA": ("_", "text"), "CRT": ("_", "text"), "CTC": ("_", "text"),
     "DAS": ("_", "text"), "EAV": ("_", "text"), "EEL": ("_", "text"),
-    "PEL": ("_", "text"),
+    "PEL": ("_", "text"), "COD": ("_", "text"),
 }
 
 HARD_COLS: dict[str, str] = {
@@ -598,8 +599,11 @@ def procesar_fila(row: pd.Series, cfg: Config) -> dict:
 
     peso_desc    = extraido.get("peso_bruto_desc")
     kg_bruto_col = _to_num(row.get("kg_bruto"))
-    peso_para_atu = peso_desc if peso_desc else kg_bruto_col
-    categoria_atu = clasificar_atu(peso_para_atu)
+    # kg_bruto_col (columna dura del Excel) NO es peso bruto -- es esencialmente una
+    # copia de peso_neto_desc (ver informe_calidad_datos.md, 62.5% coincide con
+    # peso_neto dentro de +-2%). No usarlo como fallback de ATU: mejor sin categoria
+    # que una categoria calculada con el peso equivocado.
+    categoria_atu = clasificar_atu(peso_desc)
 
     fecha_info = parsear_fecha(row.get("fecha_dua"))
 
@@ -628,6 +632,7 @@ def procesar_fila(row: pd.Series, cfg: Config) -> dict:
         "anio_modelo":          extraido.get("anio_modelo"),
         "carroceria":           carroceria_raw,
         "carroceria_normalizada": carroceria_norm,
+        "marca_chasis":         extraido.get("marca_chasis"),
         "combustible":          extraido.get("combustible"),
         "color":                extraido.get("color"),
         "traccion":             extraido.get("traccion"),

@@ -106,8 +106,13 @@ def main() -> int:
         out = out[~mask_van].copy()
 
     if "dua_dam" in out.columns:
-        vin_col = next((c for c in ("vin", "chasis") if c in out.columns), None)
-        key = out["dua_dam"].astype(str) + "|" + (out[vin_col].astype(str) if vin_col else "")
+        # Coalesce fila por fila: usar chasis solo en las filas donde vin esta vacio,
+        # no la columna entera (antes: si la columna "vin" existe se usaba siempre,
+        # aunque una fila puntual tuviera vin nulo y chasis con dato real).
+        vin_s = out["vin"] if "vin" in out.columns else pd.Series("", index=out.index)
+        chasis_s = out["chasis"] if "chasis" in out.columns else pd.Series("", index=out.index)
+        vin_final = vin_s.where(vin_s.notna() & (vin_s.astype(str) != ""), chasis_s)
+        key = out["dua_dam"].astype(str) + "|" + vin_final.astype(str)
         out = out[~key.duplicated(keep="first")].copy()
         print(f"Total después de dedup: {len(out):,} filas")
 
