@@ -20,6 +20,10 @@ import pandas as pd
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pipeline.parquet_io import write_parquet_str_safe  # noqa: E402
+
 # ══════════════════════════════════════════════════════════════════════════════
 # SECCIÓN 1 — RUTAS Y CONSTANTES
 # ══════════════════════════════════════════════════════════════════════════════
@@ -44,6 +48,23 @@ PARTIDAS_EXCLUIDAS = {
     "8429200000", "8429400000",                              # maquinaria construccion
     "8427100000", "8427200000", "8428909000",                # montacargas/plataformas
     "9503003000",                                             # juguetes a escala
+}
+
+# Whitelist de partidas de camion/tractocamion — unica fuente de verdad:
+# metodologia_descarga_mensual.md secciones 2a/2b/2c. Filtro temprano (antes de
+# la fase LLM) para archivos amplios filtrados por importador en vez de por
+# partida (ej. exports que traen repuestos/accesorios junto con camiones) —
+# sin esto, miles de filas no-camion pasan por la fase gold sin necesidad,
+# solo para terminar excluidas igual en build_parquet.py.
+PARTIDAS_CAMION = {
+    # 2a - obligatorias
+    "8704230000", "8704222000", "8704229000", "8701210000", "8704221000",
+    # 2b - complementarias
+    "8704211010", "8704211090", "8704311010", "8701290000", "8704329000",
+    "8705400000", "8706009200", "8706009900",
+    # 2c - menores
+    "8701230000", "8704100000", "8704601000", "8704311090",
+    "8705909000", "8705100000",
 }
 
 # Vans/furgones derivados de plataformas de pasajeros o comerciales ligeras que
@@ -449,6 +470,8 @@ def debe_excluir(row: dict, cfg: Config) -> tuple[bool, str]:
     partida = str(row.get("partida") or "").strip()
     if partida in PARTIDAS_EXCLUIDAS:
         return True, f"partida_no_vehicular={partida}"
+    if partida and partida not in PARTIDAS_CAMION:
+        return True, f"partida_no_camion={partida}"
 
     marca = str(row.get("marca_normalizada") or "").upper().strip()
     modelo = str(row.get("modelo") or "").upper().strip()
@@ -652,7 +675,8 @@ def _to_num(val) -> float | None:
 
 def procesar_archivo(path: Path, cfg: Config, force: bool = False) -> bool:
     print(f"\n  ═══ {path.name} ═══")
-    out_path = OUTPUTS_DIR / f"{path.stem}_fase1.xlsx"
+    out_path = OUTPUTS_DIR / f"{path.stem}_fase1.parquet"
+    qa_path  = OUTPUTS_DIR / f"{path.stem}_qa.xlsx"
     if out_path.exists() and not force:
         print("  ⏭  Ya procesado — saltando")
         return True
@@ -730,32 +754,15 @@ def procesar_archivo(path: Path, cfg: Config, force: bool = False) -> bool:
         "procesado_en":      datetime.now().isoformat(timespec="seconds"),
     }])
 
-    n_total = len(df_ok) + len(df_exc)
+    write_parquet_str_safe(df_ok, out_path)
 
-    if n_total <= 50_000:
-        with pd.ExcelWriter(out_path, engine="openpyxl") as writer:
-            if not df_ok.empty:
-                df_ok.to_excel(writer,  sheet_name="estructurado",  index=False)
-            if not df_f2.empty:
-                df_f2.to_excel(writer,  sheet_name="_para_fase_gold", index=False)
-            if not df_exc.empty:
-                df_exc.to_excel(writer, sheet_name="_excluidos",    index=False)
-            df_log.to_excel(writer,     sheet_name="_log",          index=False)
-        _formatear_salida(out_path)
-    else:
-        print(f"  📦 {n_total:,} filas → modo streaming (xlsxwriter)")
-        with pd.ExcelWriter(
-            out_path,
-            engine="xlsxwriter",
-            engine_kwargs={"options": {"constant_memory": True}},
-        ) as writer:
-            if not df_ok.empty:
-                df_ok.to_excel(writer,  sheet_name="estructurado",  index=False)
-            if not df_f2.empty:
-                df_f2.to_excel(writer,  sheet_name="_para_fase_gold", index=False)
-            if not df_exc.empty:
-                df_exc.to_excel(writer, sheet_name="_excluidos",    index=False)
-            df_log.to_excel(writer,     sheet_name="_log",          index=False)
+    with pd.ExcelWriter(qa_path, engine="openpyxl") as writer:
+        if not df_f2.empty:
+            df_f2.to_excel(writer,  sheet_name="_para_fase_gold", index=False)
+        if not df_exc.empty:
+            df_exc.to_excel(writer, sheet_name="_excluidos",    index=False)
+        df_log.to_excel(writer,     sheet_name="_log",          index=False)
+    _formatear_salida(qa_path)
 
     print(f"  ✅ Escrito → {out_path.relative_to(ROOT)}")
     return True
@@ -764,7 +771,6 @@ def procesar_archivo(path: Path, cfg: Config, force: bool = False) -> bool:
 def _formatear_salida(path: Path):
     wb = openpyxl.load_workbook(path)
     configs = {
-        "estructurado":    (C_NEGRO,   "FFFFFF"),
         "_para_fase_gold": ("884400",  "FFFFFF"),
         "_excluidos":      (C_ROJO,    "FFFFFF"),
         "_log":            ("444444",  "FFFFFF"),
