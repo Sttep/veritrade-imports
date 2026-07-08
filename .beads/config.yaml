@@ -52,3 +52,9 @@
 # - linear.api-key
 # - github.org
 # - github.repo
+
+sync.remote: "git+https://github.com/Sttep/veritrade-imports.git"
+repos:
+  primary: "."
+  additional:
+    - "C:\\Users\\creynoso\\.beads-planning"
