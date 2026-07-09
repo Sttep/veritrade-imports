@@ -488,3 +488,74 @@ fuera de la exclusión a propósito.
 - `pages/2_Camiones.py::normalizar_carroceria()` no distingue "SUV" (cae en el catch-all "OTROS"), por
   lo que antes del fix esos autos se sumaban a los totales del dashboard bajo esa categoría. Se resuelve
   en el origen (parquet limpio) sin necesidad de tocar el dashboard.
+
+---
+
+## Continuidad por importador — 9 de julio de 2026 09:53
+
+Período: Ene-Jun 2026 · 28 marca(s) analizadas (≥ 20 unidades) · 18 importador(es) con ceros sospechosos.
+
+### Checklist de descarga (nuevo, no visto en corridas anteriores)
+
+- [ ] **TRACUSA E.I.R.L.** (SHACMAN, 383 filas) — meses a revisar: Feb, Abr
+      Ene=105 Feb=0 Mar=110 Abr=0 May=114 Jun=54
+- [ ] **CAMIONES CHINOS PERU S.A.C.** (SINOTRUK, 343 filas) — meses a revisar: Feb, Abr
+      Ene=70 Feb=0 Mar=134 Abr=0 May=40 Jun=99
+- [ ] **UNIMAQ S.A.** (SHACMAN, 313 filas) — meses a revisar: Feb
+      Ene=50 Feb=0 Mar=88 Abr=0 May=0 Jun=175
+- [ ] **INTERNATIONAL CAMIONES DEL PERU S.A.** (INTERNATIONAL, 220 filas) — meses a revisar: Mar
+      Ene=81 Feb=8 Mar=0 Abr=54 May=77 Jun=0
+- [ ] **SAMUEL CHAMOCHUMBI & ASOCIADOS SAC** (SHACMAN, 160 filas) — meses a revisar: Feb, Abr
+      Ene=70 Feb=0 Mar=30 Abr=0 May=60 Jun=0
+- [ ] **CORIEX DS S.A.C.** (SINOTRUK, 145 filas) — meses a revisar: Abr
+      Ene=15 Feb=20 Mar=37 Abr=0 May=37 Jun=36
+- [ ] **J.CH.COMERCIAL S.A.** (SINOTRUK, 141 filas) — meses a revisar: Mar
+      Ene=6 Feb=41 Mar=0 Abr=34 May=37 Jun=23
+- [ ] **DIAMANTE DEL PACIFICO S.A.** (FOTON, 127 filas) — meses a revisar: May
+      Ene=0 Feb=36 Mar=36 Abr=21 May=0 Jun=34
+- [ ] **DIVEIMPORT S.A.** (FREIGHTLINER, 122 filas) — meses a revisar: Mar
+      Ene=50 Feb=20 Mar=0 Abr=32 May=20 Jun=0
+- [ ] **SAN BARTOLOME S.A.** (CAMC, 82 filas) — meses a revisar: Mar
+      Ene=18 Feb=2 Mar=0 Abr=35 May=10 Jun=17
+- [ ] **ZOOMLION HEAVY INDUSTRY PERU S.A.C.** (DONGFENG, 34 filas) — meses a revisar: Abr
+      Ene=0 Feb=0 Mar=20 Abr=0 May=4 Jun=10
+- [ ] **TRACTO MOTORS SOCIEDAD ANONIMA CERRADA** (SINOTRUK, 14 filas) — meses a revisar: Abr
+      Ene=0 Feb=0 Mar=8 Abr=0 May=6 Jun=0
+- [ ] **BRILLANTE SL S.A.C.** (SINOTRUK, 9 filas) — meses a revisar: May
+      Ene=0 Feb=0 Mar=0 Abr=4 May=0 Jun=5
+- [ ] **EQUIPAMIENTO LOS ANDES S.A.C.** (SINOTRUK, 9 filas) — meses a revisar: Abr
+      Ene=0 Feb=0 Mar=5 Abr=0 May=4 Jun=0
+
+### Ya cubierto por el checklist de `validar_cobertura.py` (no duplicar)
+
+- SANY PERU SOCIEDAD ANONIMA CERRADA (SANY, 48 filas) — la marca ya está bajo el umbral de cobertura, su propio checklist la incluye
+- ANDES MOTOR PERU S.A.C. (SANY, 12 filas) — la marca ya está bajo el umbral de cobertura, su propio checklist la incluye
+
+### Ya documentado en corridas anteriores
+
+- ZAPLER S.A.C. (HOWO, 55 filas) — investigado 2026-07-08 (caso original que motivó este script)
+
+### Hallazgo de calidad de dato aparte (no accionable como descarga)
+
+- 9 fila(s) de **FOTON** con `importador` vacío/nulo en el parquet — no se puede buscar en Veritrade sin nombre, hace falta revisar el dato de origen, no es un gap de cobertura.
+
+### Nota — investigación de la frontera de 25,000kg (`check_peso_en_frontera_categoria`)
+
+`scripts/validar_calidad_datos.py` marcó una concentración de 4.72% (2,705 filas) en exactamente
+25,000kg de `peso_bruto_desc`, además de la ya conocida en 33,000kg. Investigado — **no es un bug
+nuevo**:
+
+- **2,184 de esas filas (81%) son TRACTOCAMIÓN**, repartidas en 9+ marcas (FREIGHTLINER, FOTON,
+  MERCEDES-BENZ, SINOTRUK, SHACMAN, DONGFENG, IVECO, FAW, SITRAK, CAMC) y muchos importadores
+  distintos — no es un dato mal cargado de un importador puntual, es el mismo patrón
+  industry-wide que causó el bug de 33,000kg (ver `liz-m7u`, 2026-07-09): muchos fabricantes
+  catalogan tractocamiones con GVWR "redondo" de fábrica. **Ya resuelto**: `clasificar_segmento()`
+  fuerza `PESADO` cuando `carroceria == TRACTOCAMIÓN` sin importar el peso declarado, así que
+  estas filas ya se clasifican bien independientemente del valor exacto.
+- Las 521 filas restantes (HORMIGONERA 216, CHASIS CABINA 155, VOLQUETE 115, CISTERNA 13, otros)
+  a 25,000kg son plausiblemente GVWR real de catálogo (25 toneladas es una clase de peso estándar
+  real en camiones) — sin evidencia de error de captura.
+
+Sin acción de código pendiente. Esta nota queda para que la corrida del mes que viene no
+re-investigue el mismo hallazgo desde cero.
+
