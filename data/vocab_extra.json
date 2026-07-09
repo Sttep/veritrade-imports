@@ -412,8 +412,7 @@
       "SAC2500E",
       "SPK61502",
       "STC250T5",
-      "STC250T5,",
-      "STC550T5,",
+      "STC550T5",
       "SY308C-8W(V DRY)",
       "SY310C-8K(V DRY)",
       "SY310C-8W(V)",
@@ -817,7 +816,10 @@
       "DPU4045H",
       "DPU6555",
       "VP1340",
-      "VP1550"
+      "VP1550",
+      "1001",
+      "1501",
+      "DW30"
     ],
     "DERUI": [],
     "YANTAI": [],
@@ -1275,9 +1277,7 @@
       "BJ4259Y6DHL-25",
       "BJ4269SNFCB-4P",
       "BJ4269SNFKB-1A",
-      "BJ4269SNFKB-1A,",
       "BJ4269SNFKB-A4",
-      "BJ4269SNFKB-A4,",
       "BJ4269SNFKB-AB",
       "BJ4269SNFKB-B4",
       "BJ4353SNFKB-AC",
@@ -1335,8 +1335,8 @@
       "GMK6300L-1"
     ],
     "HAIYILI": [
-      "GH5000MQ,",
-      "GH7500FL,"
+      "GH5000MQ",
+      "GH7500FL"
     ],
     "HDK": [],
     "HELEX": [
@@ -1560,7 +1560,7 @@
     "JEREH": [],
     "JETOUR": [],
     "JIALONG": [
-      "QL1110ANMAY,"
+      "QL1110ANMAY"
     ],
     "JIANGLING": [],
     "JIANGTE": [
@@ -1641,7 +1641,7 @@
     ],
     "KEYTON": [],
     "KEYU": [
-      "Q1 CARGO BOX,"
+      "Q1 CARGO BOX"
     ],
     "KIA": [
       "K4000G"
@@ -1745,14 +1745,14 @@
       "35B402"
     ],
     "QOMOLO": [
-      "E-TRUCK,"
+      "E-TRUCK"
     ],
     "QUIROGA": [
       "MC/77"
     ],
     "RADAR": [
-      "RD5,",
-      "ZB1037BEVFR1,"
+      "RD5",
+      "ZB1037BEVFR1"
     ],
     "RAM": [
       "1500",
@@ -1764,7 +1764,7 @@
     "RELY": [],
     "RENAULT": [],
     "RIDDARA": [
-      "RD6,"
+      "RD6"
     ],
     "RLQ": [
       "RLQ5180GSJJF6"
@@ -2035,7 +2035,7 @@
     "SHINERAY": [],
     "SHOUGANG": [],
     "SIN MARCA": [
-      "T350SM,"
+      "T350SM"
     ],
     "SINMAN": [],
     "SINO MIMAQ": [],
@@ -2185,14 +2185,12 @@
       "ZZ4257V344HE1B",
       "ZZ4257V344JB1R",
       "ZZ4257V344KE1",
-      "ZZ4257V344KE1,",
       "ZZ4257V344KF1",
       "ZZ4257V384HC1B",
       "ZZ4257V384HE1C",
       "ZZ4257V384HE1CB",
       "ZZ4257V384HE1LX",
       "ZZ4257V424KE1CK",
-      "ZZ4257V424KE1CK,",
       "ZZ4257V424KF1L",
       "ZZ4257W324HE1B",
       "ZZ5207TXFV471GE5",
@@ -2410,18 +2408,13 @@
       "DELIVERY",
       "WORKER"
     ],
-    "WACKER": [
-      "1001,",
-      "1501,",
-      "DW30,"
-    ],
     "WEICHAI": [],
     "WESTWELL": [],
     "WOOPE": [],
     "WULING": [],
     "XIAOMI": [],
     "XINSHANDI": [
-      "NSD5070XXYZYE1,"
+      "NSD5070XXYZYE1"
     ],
     "XPACE": [],
     "YANSUMI": [],

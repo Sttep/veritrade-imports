@@ -35,7 +35,7 @@ def main() -> None:
     for marca, grupo in modelos_df.dropna(subset=["marca"]).groupby("marca"):
         vistos = set(modelos_por_marca.get(marca, []))
         nuevos = [
-            m for m in sorted(grupo["modelo"].dropna().astype(str).str.strip().unique())
+            m for m in sorted(grupo["modelo"].dropna().astype(str).str.strip().str.rstrip(",").unique())
             if m not in vistos
         ]
         modelos_por_marca.setdefault(marca, []).extend(nuevos)

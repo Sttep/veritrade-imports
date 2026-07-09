@@ -348,6 +348,12 @@ CODE_PATTERN = _build_code_pattern()
 ANIO_MOD_SUELTO_PATTERN = re.compile(r"\bA[ÑN]O\s*MOD\.?\s*[:=]?\s*(\d{4})\b", re.IGNORECASE)
 ANIO_SUELTO_PATTERN = re.compile(r"\bA[ÑN]O\s+(\d{4})\b", re.IGNORECASE)
 
+# Algunas descripciones traen "CC.2771" (punto) en vez de "CC:2771" -- CODE_PATTERN
+# exige "[:=]" como frontera, así que sin esto el valor de CC queda pegado al
+# código anterior (NC) y se pierde. Normalizamos el punto a ":" antes de tokenizar,
+# igual que con AÑO suelto arriba.
+CC_PUNTO_PATTERN = re.compile(r"\bCC\.\s*(?=\d)", re.IGNORECASE)
+
 
 def _convertir(valor: str, tipo: str):
     valor = valor.strip().upper()
@@ -386,6 +392,7 @@ def parsear_descripcion(texto: str) -> dict:
         return {}
     texto = ANIO_MOD_SUELTO_PATTERN.sub(r"AÑO MOD:\1", texto)
     texto = ANIO_SUELTO_PATTERN.sub(r"AÑO MOD:\1", texto)
+    texto = CC_PUNTO_PATTERN.sub("CC:", texto)
     resultado: dict = {}
     for match in CODE_PATTERN.finditer(texto):
         code  = match.group(1).strip().upper()

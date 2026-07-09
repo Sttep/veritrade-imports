@@ -66,6 +66,18 @@ COORDS = {
     "TUR":(38.96,35.24),
 }
 
+# Macro-región de manufactura, para la pestaña "Volquetes por Origen" del
+# reporte de gerencia (guia estructura antes ppt.txt, pestaña 7) -- agrupa
+# los países de PAIS_ISO en los 5 bloques que pide la guía.
+PAIS_A_REGION = {
+    "CHINA":"China","BRASIL":"Brasil","JAPÓN":"Japón/Corea","JAPON":"Japón/Corea",
+    "COREA DEL SUR":"Japón/Corea",
+    "SUECIA":"Europa","ESPAÑA":"Europa","ITALIA":"Europa","ALEMANIA":"Europa",
+    "PAÍSES BAJOS":"Europa","HOLANDA":"Europa","BÉLGICA":"Europa","POLONIA":"Europa",
+    "REINO UNIDO":"Europa","FINLANDIA":"Europa","AUSTRIA":"Europa","TURQUÍA":"Europa",
+    "COLOMBIA":"Otros","MÉXICO":"Otros","INDIA":"Otros","ESTADOS UNIDOS":"Otros",
+}
+
 MAPEO_COLS = {
     'marca_norm':          ['marca_norm','marca_normalizada','marca_declarada'],
     'modelo':              ['modelo_match','modelo','modelo_norm'],
@@ -100,9 +112,10 @@ div[data-testid="stHorizontalBlock"]:has(.kpi-row-marker) .stMarkdown p{
 .kpi-var-up{color:#4CAF50;font-weight:800;font-size:1.9rem;margin-top:8px;}
 .kpi-var-down{color:#FF5252;font-weight:800;font-size:1.9rem;margin-top:8px;}
 .section-header{display:flex;justify-content:space-between;align-items:center;
-  background:linear-gradient(90deg,#2D2D2D 0%,#1A1A1A 100%);color:white;
+  background:#FFFFFF;color:#1A1A1A;border-left:4px solid #F6E421;
   padding:10px 15px;border-radius:8px;margin-bottom:15px;
-  box-shadow:0 2px 8px rgba(0,0,0,0.2);border:1px solid #333;}
+  box-shadow:0 2px 8px rgba(0,0,0,0.08);border-top:1px solid #E8E8E8;
+  border-right:1px solid #E8E8E8;border-bottom:1px solid #E8E8E8;}
 .section-title-text{font-size:0.9rem;font-weight:600;margin:0;letter-spacing:0.3px;}
 .section-divider{border:0;height:2px;
   background:linear-gradient(90deg,#333 0%,#555 50%,#333 100%);
@@ -115,13 +128,6 @@ div[data-testid="stHorizontalBlock"]:has(.kpi-row-marker) .stMarkdown p{
 .insight-info{border-left-color:#F6E421;}
 .insight-title{font-size:0.85rem;font-weight:700;color:#1A1A1A;margin-bottom:5px;}
 .insight-text{font-size:0.8rem;color:#555;line-height:1.5;}
-.stTabs [data-baseweb="tab-list"]{gap:8px;background-color:#FFFFFF;
-  padding:10px;border-radius:8px;border:1px solid #E0E0E0;}
-.stTabs [data-baseweb="tab"]{background-color:#F5F5F5;border-radius:6px;
-  padding:8px 16px;color:#1A1A1A;font-weight:600;}
-.stTabs [aria-selected="true"]{
-  background:linear-gradient(135deg,#1A1A1A,#2D2D2D)!important;
-  color:#FFFFFF!important;}
 </style>""", unsafe_allow_html=True)
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -284,6 +290,33 @@ def render_bloque(titulo, fig, df_tabla, key, nombre="datos"):
                         config={'displayModeBar':True,'displaylogo':False})
     with st.expander("📊 Ver tabla", expanded=False):
         st.dataframe(df_tabla, hide_index=True, use_container_width=True)
+
+def render_kpi_cards(kpis: list[dict]):
+    """4 tarjetas KPI nativas (st.metric) -- fondo claro por default, sin CSS
+    custom. Cada kpi: {"titulo": str, "valor": str, "subtitulo": str (opcional)}."""
+    cols = st.columns(min(len(kpis), 4))
+    for col, k in zip(cols, kpis[:4]):
+        with col:
+            st.metric(k['titulo'], k['valor'])
+            if k.get('subtitulo'):
+                st.caption(k['subtitulo'])
+
+def vc_reales(serie):
+    """Igual que serie.value_counts() pero sin las categorías fantasma en 0
+    -- marca_norm/categoria_carroceria son dtype 'category' con TODAS las
+    marcas del dataset completo; al filtrar df_actual (ej. Vista=Sinotruk),
+    value_counts() igual devuelve las ~90 categorías del dataset original
+    con conteo 0 para las que no están en el subset filtrado."""
+    vc = serie.value_counts()
+    return vc[vc > 0]
+
+def safe_selectbox(label, options, key, **kwargs):
+    """Igual que st.selectbox pero resetea la selección persistida si ya no
+    está en `options` (ej. se angostó el rango de fechas) -- evita el
+    StreamlitAPIException que encontró rompe-dashboard."""
+    if key in st.session_state and st.session_state[key] not in options:
+        del st.session_state[key]
+    return st.selectbox(label, options, key=key, **kwargs)
 
 def tabla_dl(df_tabla, key, nombre="datos"):
     """Muestra un dataframe con botones de descarga xlsx/csv debajo."""
@@ -478,7 +511,10 @@ with col_btn:
     st.markdown('<div style="height:32px"></div>', unsafe_allow_html=True)
     if st.button("🔄", use_container_width=True, help="Actualizar datos"):
         st.cache_data.clear()
+        st.toast("✅ Datos actualizados", icon="🔄")
         st.rerun()
+    _f_act = datetime.fromtimestamp(ULTIMA_ACT).strftime('%d/%m %H:%M') if ULTIMA_ACT else "—"
+    st.caption(f"↻ {_f_act}")
 
 # ── FECHAS — FIX: int() explícito para monthrange ─────────────────────────────
 mes_ini_n   = MESES_NOMBRES.index(mes_ini) + 1
@@ -493,6 +529,10 @@ f_ini   = pd.Timestamp(año_ini_int,   mes_ini_n, 1)
 f_fin   = pd.Timestamp(año_fin_int,   mes_fin_n, ld,   23, 59, 59)
 f_ini_a = pd.Timestamp(año_ini_int-1, mes_ini_n, 1)
 f_fin_a = pd.Timestamp(año_fin_int-1, mes_fin_n, ld_a, 23, 59, 59)
+
+if f_ini > f_fin:
+    st.warning("⚠️ La fecha 'Desde' es posterior a 'Hasta' — invertí el rango para ver datos.")
+    st.stop()
 
 df_actual   = df[(df['fecha']>=f_ini)   & (df['fecha']<=f_fin)]
 df_anterior = df[(df['fecha']>=f_ini_a) & (df['fecha']<=f_fin_a)]
@@ -528,6 +568,18 @@ with col_seg:
         if cat_sel:
             df_actual   = df_actual[df_actual['categoria_carroceria'].isin(cat_sel)]
             df_anterior = df_anterior[df_anterior['categoria_carroceria'].isin(cat_sel)]
+
+    col_topn, col_graf = st.columns(2)
+    with col_topn:
+        TOP_N = st.selectbox("Top", [10, 15, 20, 30, 50], index=1, key="top_n_global",
+                             help="Cuántas filas muestran las tablas de ranking (Mercado, Marca y "
+                                  "Segmento, Camiones, Tractos, Volquetes). No afecta Segmentos, "
+                                  "Volquetes por Origen ni Combustible, que tienen categorías fijas.")
+    with col_graf:
+        st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
+        MOSTRAR_GRAFICO = st.checkbox("📊 Gráficos", value=True, key="mostrar_grafico",
+                                      help="Las tablas siempre se muestran; esto solo agrega o quita "
+                                           "los gráficos de las 8 secciones del reporte.")
 
 total_act = len(df_actual)
 total_ant = len(df_anterior)
@@ -571,6 +623,8 @@ with col_kpis:
         </span>
       </div>
     </div>""", unsafe_allow_html=True)
+    st.caption("🎯 La proyección es una extrapolación lineal del ritmo actual — no es un pedido "
+               "confirmado ni un dato oficial de cierre.")
 
 # ── INSIGHTS ──────────────────────────────────────────────────────────────────
 ins = insights_ejecutivos(df_actual, df_anterior, total_act, total_ant)
@@ -592,20 +646,12 @@ if df_actual.empty:
 
 año_actual = año_fin_int
 
-# ── TABS ──────────────────────────────────────────────────────────────────────
-if es_sinotruk:
-    tab3, tab1, tab2, tab4, tab5 = st.tabs(["🟡 SINOTRUK / WITHMORY",
-                                             "📈 Market Share","🏆 Competencia",
-                                             "🗺️ Mapa Origen","📊 Cobertura AAP"])
-else:
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Market Share","🏆 Competencia",
-                                             "🟡 SINOTRUK / WITHMORY","🗺️ Mapa Origen",
-                                             "📊 Cobertura AAP"])
-
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 1 — MARKET SHARE
+# SECCIÓN PRESERVADA — MARKET SHARE (detalle histórico, tendencia + segmento/peso)
+# No es una de las 10 pestañas de gerencia -- se mantiene intacta como sección
+# extendida (nada se borra, ver plan de modernización).
 # ══════════════════════════════════════════════════════════════════════════════
-with tab1:
+def render_market_share_detalle():
     tend = df_actual.groupby(['año','mes','mes_nombre']).size().reset_index(name='Unidades')
     tend['Año'] = tend['año'].astype(str)
     meses_ord = [m for m in MESES_NOMBRES if m in tend['mes_nombre'].unique()]
@@ -736,9 +782,9 @@ with tab1:
             render_bloque("⚙️ Por Tracción", fig_tr, trac, "trac", "traccion")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — COMPETENCIA (estilo maquinaria)
+# SECCIÓN PRESERVADA — COMPETENCIA (head-to-head, detalle de importadores)
 # ══════════════════════════════════════════════════════════════════════════════
-with tab2:
+def render_competencia():
     cr1, cr2, cr3 = st.columns([2, 1, 1])
     with cr1:
         modo = st.radio("Ver por:", ["🏆 Marcas","🏢 Importadores"],
@@ -811,7 +857,9 @@ with tab2:
             tiene_cif = COL_CIF and COL_CIF in df_f.columns and df_f[COL_CIF].sum()>0
             if tiene_cif:
                 tipo_p = st.radio("💰", ["📦 FOB","🚢 CIF"], horizontal=True,
-                                  key=f"tp_{actor}", label_visibility="collapsed")
+                                  key=f"tp_{actor}", label_visibility="collapsed",
+                                  help="FOB = valor de exportación sin flete ni seguro · "
+                                       "CIF = valor con flete y seguro incluido hasta destino.")
                 col_p = COL_FOB if "FOB" in tipo_p else COL_CIF
                 nom_p = "FOB" if "FOB" in tipo_p else "CIF"
             else:
@@ -1123,9 +1171,9 @@ with tab2:
                         st.plotly_chart(fig_pc, use_container_width=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 3 — SINOTRUK / WITHMORY
+# SECCIÓN PRESERVADA — SINOTRUK / WITHMORY
 # ══════════════════════════════════════════════════════════════════════════════
-with tab3:
+def render_sinotruk():
     m_sin = df_actual[COL_MARCA].astype(str).str.upper().str.strip() == "SINOTRUK"
     df_sin = df_actual[m_sin]
 
@@ -1154,7 +1202,9 @@ with tab3:
         with col_obj:
             objetivo_ms = st.number_input("Objetivo MS%", min_value=1.0, max_value=100.0,
                                           value=25.0, step=0.5, key="obj_ms",
-                                          label_visibility="visible")
+                                          label_visibility="visible",
+                                          help="Meta de Market Share configurada manualmente — "
+                                               "no está vinculada a ninguna cuota comercial real.")
 
         # ── Fila KPIs ─────────────────────────────────────────────────────────
         c1, c2, c3, c4, c5 = st.columns(5)
@@ -1563,9 +1613,9 @@ with tab3:
                     tabla_dl(pd.DataFrame(var_sin), "var_sin_dealer", f"variacion_marca_{imp_sel_sin}")
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 4 — MAPA DE BURBUJAS (fondo blanco, plano, filtros)
+# SECCIÓN PRESERVADA — MAPA ORIGEN (fondo blanco, plano, filtros)
 # ══════════════════════════════════════════════════════════════════════════════
-with tab4:
+def render_mapa_origen():
     if 'pais_origen' not in df_actual.columns:
         st.warning("No hay columna pais_origen")
     else:
@@ -1599,7 +1649,7 @@ with tab4:
             cont_sel = st.selectbox("🌍 Continente:", list(CONTINENTES.keys()), key="cont_sel")
         with mc2:
             paises_disp = ["TODOS"] + sorted(mapa_df_full['_origen'].unique().tolist())
-            pais_sel = st.selectbox("🗺️ País específico:", paises_disp, key="pais_sel")
+            pais_sel = safe_selectbox("🗺️ País específico:", paises_disp, key="pais_sel")
 
         # Aplicar filtros
         mapa_df = mapa_df_full.copy()
@@ -1772,8 +1822,11 @@ with tab4:
                         <div class="insight-text">{len(mapa_df)} países · Top 3 concentra
                         <b>{conc:.1f}%</b></div></div>""", unsafe_allow_html=True)
 
-# ── TAB 5: COBERTURA AAP ──────────────────────────────────────────────────────
-with tab5:
+# ══════════════════════════════════════════════════════════════════════════════
+# SECCIÓN PRESERVADA — AUDITORÍA / COBERTURA AAP (control de calidad interno,
+# no es una pestaña de gerencia -- se muestra al final, colapsada por default)
+# ══════════════════════════════════════════════════════════════════════════════
+def render_auditoria():
     st.markdown("### 📊 Cobertura Veritrade vs. Mercado AAP")
     st.caption("Fuente AAP: Asociación Automotriz del Perú · Camiones nuevos importados")
 
@@ -1906,6 +1959,367 @@ with tab5:
             "no por unidad individual. La cobertura % puede superar 100% si un DUA "
             "incluye múltiples unidades del mismo modelo."
         )
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECCIONES NUEVAS — las 8 pestañas del reporte de gerencia que sí tienen datos
+# hoy (ver guia estructura antes ppt.txt). Reusan df_actual/df_anterior, los
+# helpers y las columnas ya normalizadas por cargar() -- no recalculan nada
+# desde cero.
+# ══════════════════════════════════════════════════════════════════════════════
+SEGMENTO_GUIA_MAP = {"TRACTOCAMIÓN": "Tractos", "VOLQUETE": "Volquetes"}
+
+def _bucket_segmento_guia(cat):
+    return SEGMENTO_GUIA_MAP.get(cat, "Camiones")
+
+def render_mercado():
+    st.markdown("## 🏠 Mercado")
+    st.caption(f"Ranking Top {TOP_N} marcas del mercado total, resto agrupado en 'Otros competidores' "
+               "(regla del reporte de gerencia).")
+
+    rank_act = vc_reales(df_actual[COL_MARCA])
+    rank_ant = vc_reales(df_anterior[COL_MARCA])
+    ultimo_mes = df_actual['mes'].max() if not df_actual.empty else None
+    uds_ultimo_mes = (vc_reales(df_actual[df_actual['mes'] == ultimo_mes][COL_MARCA])
+                       if ultimo_mes is not None else pd.Series(dtype=int))
+
+    top15 = rank_act.sort_values(ascending=False).head(TOP_N)
+    total_mercado = int(rank_act.sum())
+    resto = total_mercado - int(top15.sum())
+
+    filas = []
+    for i, (marca, uds) in enumerate(top15.items(), start=1):
+        ant = int(rank_ant.get(marca, 0))
+        filas.append({
+            'Ranking': str(i), 'Marca': marca,
+            'Último Mes': str(int(uds_ultimo_mes.get(marca, 0))),
+            'Acumulado': int(uds),
+            'Market Share (%)': round(uds/total_mercado*100, 1) if total_mercado else 0.0,
+            'Var. % vs Año Anterior': calc_var({'a': uds, 'b': ant}, 'a', 'b'),
+        })
+    if resto > 0:
+        filas.append({'Ranking': '—', 'Marca': 'Otros competidores', 'Último Mes': '—',
+                       'Acumulado': resto,
+                       'Market Share (%)': round(resto/total_mercado*100, 1) if total_mercado else 0.0,
+                       'Var. % vs Año Anterior': '—'})
+    filas.append({'Ranking': '—', 'Marca': 'Total General', 'Último Mes': '—',
+                   'Acumulado': total_mercado, 'Market Share (%)': 100.0,
+                   'Var. % vs Año Anterior': '—'})
+    tabla = pd.DataFrame(filas)
+
+    render_kpi_cards([
+        {'titulo': 'Mercado Total', 'valor': f"{total_act:,}", 'subtitulo': 'unidades acumuladas'},
+        {'titulo': 'Marca Líder', 'valor': str(top15.index[0]) if not top15.empty else '—',
+         'subtitulo': f"{round(top15.iloc[0]/total_mercado*100,1)}% share" if total_mercado and not top15.empty else ''},
+        {'titulo': '2do Competidor', 'valor': str(top15.index[1]) if len(top15) > 1 else '—',
+         'subtitulo': f"{int(top15.iloc[1]):,} uds" if len(top15) > 1 else ''},
+        {'titulo': 'Marcas Activas', 'valor': f"{rank_act.shape[0]:,}", 'subtitulo': 'con al menos 1 unidad'},
+    ])
+    tabla_dl(tabla, 'mercado_top15', 'mercado_top15')
+
+    if MOSTRAR_GRAFICO:
+        st.divider()
+        st.markdown("##### 📈 Tendencia mensual histórica")
+        tend = df_actual.groupby(['año','mes','mes_nombre']).size().reset_index(name='Unidades')
+        tend['Año'] = tend['año'].astype(str)
+        meses_ord = [m for m in MESES_NOMBRES if m in tend['mes_nombre'].unique()]
+        fig_t = px.line(tend, x='mes_nombre', y='Unidades', color='Año', markers=True,
+                        color_discrete_sequence=COLOR_PALETTE)
+        fig_t.update_layout(plot_bgcolor='white', height=350,
+                            xaxis={'categoryorder':'array','categoryarray':meses_ord})
+        st.plotly_chart(fig_t, use_container_width=True)
+
+def render_segmentos():
+    st.markdown("## 📊 Mercado por Segmento")
+    st.caption("Camiones = resto de carrocerías rígidas (Chasis Cabina, Hormigonera, Grúa, "
+               "Cisterna, Furgón, Otros) · Tractos = Tractocamión · Volquetes = Volquete.")
+
+    seg_act = df_actual['categoria_carroceria'].apply(_bucket_segmento_guia).value_counts()
+    seg_ant = df_anterior['categoria_carroceria'].apply(_bucket_segmento_guia).value_counts()
+    total = int(seg_act.sum())
+
+    filas = []
+    for seg in ['Camiones', 'Tractos', 'Volquetes']:
+        act = int(seg_act.get(seg, 0))
+        ant = int(seg_ant.get(seg, 0))
+        filas.append({
+            'Segmento': seg,
+            'Unidades Año Anterior': ant,
+            'Unidades Año Actual': act,
+            'Participación por Segmento (%)': round(act/total*100, 1) if total else 0.0,
+            'Crecimiento Absoluto': act - ant,
+        })
+    tabla = pd.DataFrame(filas)
+
+    render_kpi_cards([{'titulo': seg, 'valor': f"{int(seg_act.get(seg,0)):,}", 'subtitulo': 'unidades'}
+                      for seg in ['Camiones','Tractos','Volquetes']]
+                      + [{'titulo':'Total','valor':f"{total:,}",'subtitulo':'unidades'}])
+    tabla_dl(tabla, 'segmentos_guia', 'mercado_por_segmento')
+
+    if MOSTRAR_GRAFICO:
+        fig = px.bar(tabla, x='Segmento', y='Unidades Año Actual', text='Unidades Año Actual',
+                    color='Segmento', color_discrete_sequence=COLOR_PALETTE)
+        fig.update_layout(plot_bgcolor='white', showlegend=False, height=350)
+        st.plotly_chart(fig, use_container_width=True)
+
+    with st.expander("🔍 Ver detalle completo por carrocería (8 categorías)", expanded=False):
+        detalle = vc_reales(df_actual['categoria_carroceria']).reset_index()
+        detalle.columns = ['Carrocería','Unidades']
+        st.dataframe(detalle, hide_index=True, use_container_width=True)
+
+def render_marca_segmento():
+    st.markdown("## 🏆 Análisis por Marca y Segmento")
+    st.caption(f"Top {TOP_N} marcas del mercado pesado, con su participación dentro de cada segmento.")
+
+    df_seg = df_actual.copy()
+    df_seg['_seg_guia'] = df_seg['categoria_carroceria'].apply(_bucket_segmento_guia)
+    top10_marcas = vc_reales(df_seg[COL_MARCA]).head(TOP_N).index.tolist()
+    totales_seg = df_seg['_seg_guia'].value_counts()
+
+    filas = []
+    suma_top = {seg: 0 for seg in ['Camiones','Tractos','Volquetes']}
+    for marca in top10_marcas:
+        df_m = df_seg[df_seg[COL_MARCA] == marca]
+        fila = {'Marca': marca}
+        for seg in ['Camiones','Tractos','Volquetes']:
+            uds = int((df_m['_seg_guia'] == seg).sum())
+            tot_seg = int(totales_seg.get(seg, 0))
+            suma_top[seg] += uds
+            fila[f'{seg} — Unidades'] = uds
+            fila[f'{seg} — % Share'] = round(uds/tot_seg*100, 1) if tot_seg else 0.0
+        filas.append(fila)
+    tabla = pd.DataFrame(filas)
+
+    # "Otros" -- lo que queda del Top N no cubre, para que Total General sí
+    # cierre con la suma de las filas de arriba (mismo criterio que Mercado).
+    fila_otros = {'Marca': 'Otros competidores'}
+    hay_otros = False
+    for seg in ['Camiones','Tractos','Volquetes']:
+        tot_seg = int(totales_seg.get(seg, 0))
+        resto = tot_seg - suma_top[seg]
+        hay_otros = hay_otros or resto > 0
+        fila_otros[f'{seg} — Unidades'] = resto
+        fila_otros[f'{seg} — % Share'] = round(resto/tot_seg*100, 1) if tot_seg else 0.0
+    if hay_otros:
+        tabla = pd.concat([tabla, pd.DataFrame([fila_otros])], ignore_index=True)
+
+    fila_total = {'Marca': 'Total General'}
+    for seg in ['Camiones','Tractos','Volquetes']:
+        fila_total[f'{seg} — Unidades'] = int(totales_seg.get(seg, 0))
+        fila_total[f'{seg} — % Share'] = 100.0
+    tabla = pd.concat([tabla, pd.DataFrame([fila_total])], ignore_index=True)
+
+    tabla_dl(tabla, 'marca_segmento', 'analisis_marca_segmento')
+
+def render_camiones():
+    st.markdown("## 🚚 Camiones Rígidos (Chasis Cabina)")
+    st.caption(f"Distinto del bucket 'Camiones' de la sección Segmentos (ese incluye Hormigonera, "
+               f"Grúa, Cisterna, Furgón y Otros además de Chasis Cabina) — acá es solo Chasis Cabina. "
+               f"Top {TOP_N} modelos comerciales.")
+    df_cam = df_actual[df_actual['categoria_carroceria'] == 'CHASIS CABINA']
+    if df_cam.empty:
+        st.info("Sin registros de Chasis Cabina en el período/filtro seleccionado.")
+        return
+    total_cam = len(df_cam)
+    ultimo_mes = df_cam['mes'].max()
+
+    acumulado = (df_cam.groupby([COL_MARCA, COL_MODELO, 'segmento_peso'], observed=True)
+                 .size().reset_index(name='Unidades Acumuladas'))
+    ult_mes = (df_cam[df_cam['mes'] == ultimo_mes]
+               .groupby([COL_MARCA, COL_MODELO], observed=True)
+               .size().reset_index(name='Unidades Último Mes'))
+    top = acumulado.merge(ult_mes, on=[COL_MARCA, COL_MODELO], how='left')
+    top['Unidades Último Mes'] = top['Unidades Último Mes'].fillna(0).astype(int)
+    top = top.sort_values('Unidades Acumuladas', ascending=False).head(TOP_N)
+    top['% Share Segmento'] = (top['Unidades Acumuladas']/total_cam*100).round(1)
+    top = top.rename(columns={COL_MARCA:'Marca', COL_MODELO:'Modelo', 'segmento_peso':'Configuración/Peso'})
+    top = top[['Marca','Modelo','Configuración/Peso','Unidades Último Mes','Unidades Acumuladas','% Share Segmento']]
+
+    modelo_lider = f"{top.iloc[0]['Modelo']} ({top.iloc[0]['Marca']})" if not top.empty else '—'
+    render_kpi_cards([
+        {'titulo':'Camiones (Chasis Cabina)','valor':f"{total_cam:,}",'subtitulo':'unidades'},
+        {'titulo':'Marca Líder','valor':str(df_cam[COL_MARCA].value_counts().idxmax()),'subtitulo':''},
+        {'titulo':'Modelo Líder','valor':modelo_lider,'subtitulo':''},
+        {'titulo':'Modelos distintos','valor':f"{df_cam[COL_MODELO].nunique():,}",'subtitulo':''},
+    ])
+    tabla_dl(top, 'top_camiones', 'top_modelos_camiones')
+
+def render_tractos():
+    st.markdown("## 🚛 Tractos")
+    st.caption(f"Top {TOP_N} marcas líderes en tractocamiones/remolcadores, apertura por tren motriz.")
+    df_seg = df_actual[df_actual['categoria_carroceria'] == 'TRACTOCAMIÓN']
+    df_seg_ant = df_anterior[df_anterior['categoria_carroceria'] == 'TRACTOCAMIÓN']
+    if df_seg.empty:
+        st.info("Sin registros de Tractocamión en el período/filtro seleccionado.")
+        return
+    total_seg = len(df_seg)
+    rank = vc_reales(df_seg[COL_MARCA]).head(TOP_N)
+    rank_ant = vc_reales(df_seg_ant[COL_MARCA])
+
+    render_kpi_cards([
+        {'titulo':'Tractos','valor':f"{total_seg:,}",'subtitulo':'unidades'},
+        {'titulo':'Marca Líder','valor':str(rank.index[0]) if not rank.empty else '—',
+         'subtitulo':f"{round(rank.iloc[0]/total_seg*100,1)}% share" if not rank.empty else ''},
+        {'titulo':f'Marcas en el Top {TOP_N}','valor':f"{len(rank)}",'subtitulo':''},
+        {'titulo':'Configuraciones distintas','valor':f"{df_seg['traccion'].nunique()}",'subtitulo':'tren motriz'},
+    ])
+
+    filas = [{'Marca': marca, 'Unidades Acumuladas': int(uds),
+              '% Share Tractos': round(uds/total_seg*100, 1),
+              'Variación vs Año Anterior': calc_var({'a':uds,'b':int(rank_ant.get(marca,0))}, 'a','b')}
+             for marca, uds in rank.items()]
+    tabla_dl(pd.DataFrame(filas), 'top5_tractos', 'top5_tractos')
+
+    st.markdown("##### Apertura por configuración (tren motriz)")
+    for marca in rank.index:
+        trac = df_seg[df_seg[COL_MARCA] == marca]['traccion'].value_counts()
+        if trac.empty:
+            continue
+        with st.expander(f"{marca} — {int(rank[marca]):,} uds"):
+            tabla_t = trac.reset_index()
+            tabla_t.columns = ['Configuración', 'Unidades']
+            st.dataframe(tabla_t, hide_index=True, use_container_width=True)
+
+def render_volquetes():
+    st.markdown("## 🏗️ Volquetes")
+    st.caption(f"Top {TOP_N} marcas líderes en volquetes, apertura 6x4 / 8x4.")
+    df_seg = df_actual[df_actual['categoria_carroceria'] == 'VOLQUETE']
+    if df_seg.empty:
+        st.info("Sin registros de Volquete en el período/filtro seleccionado.")
+        return
+    total_seg = len(df_seg)
+    rank = vc_reales(df_seg[COL_MARCA]).head(TOP_N)
+
+    render_kpi_cards([
+        {'titulo':'Volquetes','valor':f"{total_seg:,}",'subtitulo':'unidades'},
+        {'titulo':'Marca Líder','valor':str(rank.index[0]) if not rank.empty else '—','subtitulo':''},
+        {'titulo':'% en 6x4','valor':f"{round((df_seg['traccion']=='6X4').mean()*100,1)}%",'subtitulo':''},
+        {'titulo':'% en 8x4','valor':f"{round((df_seg['traccion']=='8X4').mean()*100,1)}%",'subtitulo':''},
+    ])
+
+    filas = []
+    for marca, uds in rank.items():
+        df_m = df_seg[df_seg[COL_MARCA] == marca]
+        filas.append({
+            'Marca': marca, 'Total Unidades Acumuladas': int(uds),
+            '6x4': int((df_m['traccion']=='6X4').sum()),
+            '8x4': int((df_m['traccion']=='8X4').sum()),
+            '% Market Share Volquetes': round(uds/total_seg*100, 1),
+        })
+    tabla_dl(pd.DataFrame(filas), 'top5_volquetes', 'top5_volquetes')
+
+def render_origen():
+    st.markdown("## 🌍 Volquetes por Origen")
+    st.caption("País de manufactura del vehículo, agrupado en macro-regiones, filtrado a Volquetes "
+               "(igual criterio que el reporte de gerencia). Para ver todos los vehículos, "
+               "usá la sección 'Mapa Origen (todos los vehículos)'.")
+    if 'pais_origen' not in df_actual.columns:
+        st.warning("No hay columna pais_origen")
+        return
+    df_vol = df_actual[df_actual['categoria_carroceria'] == 'VOLQUETE'].copy()
+    if df_vol.empty:
+        st.info("Sin registros de Volquete en el período/filtro seleccionado.")
+        return
+    df_vol['_pais'] = df_vol['pais_origen'].astype(str).str.upper().str.strip()
+    df_vol['_region'] = df_vol['_pais'].map(PAIS_A_REGION).fillna('Otros')
+    total_vol = len(df_vol)
+
+    filas = []
+    for region in ['China','Europa','Brasil','Japón/Corea','Otros']:
+        df_r = df_vol[df_vol['_region'] == region]
+        if df_r.empty:
+            continue
+        marcas_rep = ', '.join(vc_reales(df_r[COL_MARCA]).head(3).index.tolist())
+        filas.append({
+            'Origen': region, 'Marcas Representativas': marcas_rep,
+            'Unidades Acumuladas': len(df_r),
+            '% Share de Origen': round(len(df_r)/total_vol*100, 1),
+        })
+    tabla = pd.DataFrame(filas).sort_values('Unidades Acumuladas', ascending=False)
+
+    render_kpi_cards([
+        {'titulo':'Volquetes (total)','valor':f"{total_vol:,}",'subtitulo':'unidades'},
+        {'titulo':'Región Líder','valor':str(tabla.iloc[0]['Origen']) if not tabla.empty else '—','subtitulo':''},
+        {'titulo':'Regiones activas','valor':f"{len(tabla)}",'subtitulo':''},
+        {'titulo':'Países distintos','valor':f"{df_vol['_pais'].nunique()}",'subtitulo':''},
+    ])
+    tabla_dl(tabla, 'volquetes_origen', 'volquetes_por_origen')
+
+    if MOSTRAR_GRAFICO and not tabla.empty:
+        fig = px.pie(tabla, values='Unidades Acumuladas', names='Origen', hole=0.4,
+                    color_discrete_sequence=COLOR_PALETTE)
+        st.plotly_chart(fig, use_container_width=True)
+
+def render_combustible():
+    st.markdown("## ⛽ Comparativo por Tipo de Combustible")
+    st.caption("Período actual vs período anterior (mismo filtro de fechas de todo el dashboard).")
+    if 'combustible_norm' not in df_actual.columns:
+        st.warning("No hay columna combustible_norm")
+        return
+    CATS_GUIA = ['DIESEL', 'GNV', 'HÍBRIDO', 'ELÉCTRICO']
+    comb_act = df_actual['combustible_norm'].value_counts()
+    comb_ant = df_anterior['combustible_norm'].value_counts()
+    tot_act = int(comb_act.sum())
+    tot_ant = int(comb_ant.sum())
+
+    filas = []
+    for cat in CATS_GUIA:
+        act = int(comb_act.get(cat, 0))
+        ant = int(comb_ant.get(cat, 0))
+        pct_act = round(act/tot_act*100, 1) if tot_act else 0.0
+        pct_ant = round(ant/tot_ant*100, 1) if tot_ant else 0.0
+        filas.append({
+            'Tecnología': cat.title() if cat not in ('GNV',) else cat,
+            '% Participación Periodo Anterior': pct_ant,
+            '% Participación Periodo Actual': pct_act,
+            'Unidades Reales Período Actual': act,
+            'Desplazamiento (pp)': round(pct_act - pct_ant, 1),
+        })
+    tabla = pd.DataFrame(filas)
+
+    render_kpi_cards([
+        {'titulo':'Diesel','valor':f"{tabla.iloc[0]['% Participación Periodo Actual']}%",'subtitulo':'del período actual'},
+        {'titulo':'GNV','valor':f"{tabla.iloc[1]['% Participación Periodo Actual']}%",'subtitulo':''},
+        {'titulo':'Híbrido + Eléctrico',
+         'valor':f"{round(tabla.iloc[2]['% Participación Periodo Actual']+tabla.iloc[3]['% Participación Periodo Actual'],1)}%",
+         'subtitulo':'transición energética'},
+        {'titulo':'Total unidades','valor':f"{tot_act:,}",'subtitulo':''},
+    ])
+    tabla_dl(tabla, 'combustible_comparativo', 'comparativo_combustible')
+
+    if MOSTRAR_GRAFICO:
+        fig = px.bar(tabla, x='Tecnología',
+                    y=['% Participación Periodo Anterior','% Participación Periodo Actual'],
+                    barmode='group', color_discrete_sequence=['#9E9E9E', COLOR_SINOTRUK])
+        fig.update_layout(plot_bgcolor='white', height=350)
+        st.plotly_chart(fig, use_container_width=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# VISTA ÚNICA — las 8 secciones de gerencia, una debajo de la otra, sin clicks.
+# (antes era navegación por sidebar; el usuario pidió todo visible de una vez).
+# ══════════════════════════════════════════════════════════════════════════════
+if es_sinotruk:
+    st.info("🟡 Estás en modo Sinotruk: las 8 secciones de abajo quedan reducidas a esa sola marca "
+            "(100% share). Para el detalle real de importadores, Withmory y evolución de market "
+            "share, abrí '📚 Análisis extendido' más abajo.")
+
+for _fn in [render_mercado, render_segmentos, render_marca_segmento, render_camiones,
+            render_tractos, render_volquetes, render_origen, render_combustible]:
+    _fn()
+    st.divider()
+
+with st.expander("📚 Análisis extendido (Market Share detalle, Competencia, Sinotruk/Withmory, "
+                  "Mapa Origen de todos los vehículos)", expanded=es_sinotruk):
+    render_market_share_detalle()
+    st.divider()
+    render_competencia()
+    st.divider()
+    render_sinotruk()
+    st.divider()
+    render_mapa_origen()
+
+if st.checkbox("🔍 Auditoría del Sistema", value=False,
+               help="Control de calidad interno (Cobertura AAP) -- no es parte del reporte de gerencia."):
+    render_auditoria()
 
 # ── FOOTER ────────────────────────────────────────────────────────────────────
 st.divider()

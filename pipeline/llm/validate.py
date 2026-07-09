@@ -90,7 +90,7 @@ def normalize_record(item: dict, v: Vocab) -> dict:
     else:
         rec["marca_norm"], rec["marca_in_vocab"], rec["marca_sugerencia"] = None, False, None
 
-    modelo_raw = item.get("modelo_codigo")
+    modelo_raw = item.get("modelo")
     modelo_raw = modelo_raw.strip() if isinstance(modelo_raw, str) and modelo_raw.strip() else None
     rec["modelo_raw_llm"] = modelo_raw
     marca_for_models = rec["marca_norm"] if rec["marca_in_vocab"] else None

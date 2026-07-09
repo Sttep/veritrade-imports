@@ -6,19 +6,28 @@
 
 ## Resumen
 
-- **Total hallazgos:** 12
+- **Total hallazgos:** 21
 
 ---
 
 ### Marca con resultado distinto según pase por reglas (silver) o LLM (gold)
 - Estas marcas normalizan distinto según el camino que tome la fila (confianza=ALTA usa reglas, confianza=BAJA pasa por LLM) -- resultado inconsistente para el mismo texto declarado.
-- Hallazgos: 0
-- Sin hallazgos
+- Hallazgos: 10
+  - HOMAN: reglas→HOMAN vs LLM→SINOTRUK
+  - HOWO: reglas→HOWO vs LLM→SINOTRUK
+  - IVECO ASTRA: reglas→IVECO ASTRA vs LLM→IVECO
+  - SINOTRUK HOMAN: reglas→SINOTRUK HOMAN vs LLM→SINOTRUK
+  - SINOTRUK HOWO: reglas→SINOTRUK HOWO vs LLM→SINOTRUK
+  - SINOTRUK SITRAK C7H: reglas→SINOTRUK SITRAK C7H vs LLM→SINOTRUK
+  - SINOTRUK WANGPAI: reglas→SINOTRUK WANGPAI vs LLM→SINOTRUK
+  - SITRAK: reglas→SITRAK vs LLM→SINOTRUK
+  - WACKER: reglas→WACKER vs LLM→WACKER NEUSON
+  - WANGPAI: reglas→WANGPAI vs LLM→SINOTRUK
 
 ### Bug de precedencia: marca es clave de 'marcas' Y de 'aliases' (el alias nunca se aplica)
 - Mismo bug corregido para SINOTRUK/IVECO/PEREYRA en 2026-07-08 -- Vocab.marca_canonica() revisa _marca_idx antes que _alias_idx.
-- Hallazgos: 1
-  - 'WACKER' -> 'WACKER NEUSON' (pero 'WACKER' sigue siendo su propia marca en 'marcas', Vocab._marca_idx la resuelve antes que el alias)
+- Hallazgos: 0
+- Sin hallazgos
 
 ### marca_norm en camiones.parquet ausente de ambos catálogos
 - Marcas resueltas 100% por inferencia del LLM, sin ningún catálogo local contra el cual validarlas.
@@ -49,8 +58,8 @@
 
 | Check | Hallazgos |
 |---|---|
-| Marca con resultado distinto según pase por reglas (silver) o LLM (gold) | 0 |
-| Bug de precedencia: marca es clave de 'marcas' Y de 'aliases' (el alias nunca se aplica) | 1 |
+| Marca con resultado distinto según pase por reglas (silver) o LLM (gold) | 10 |
+| Bug de precedencia: marca es clave de 'marcas' Y de 'aliases' (el alias nunca se aplica) | 0 |
 | marca_norm en camiones.parquet ausente de ambos catálogos | 11 |
 | marca_bruta repetida con distinto marca_normalizada en hoja 'marcas' | 0 |
 | Modelos duplicados dentro de una misma marca en vocab_extra.json | 0 |
