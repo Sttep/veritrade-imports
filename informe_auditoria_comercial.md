@@ -1,5 +1,5 @@
 # Informe de Auditoría de Datos y Calidad Comercial — Camiones
-**Fecha de generación:** 2026-07-08 22:27
+**Fecha de generación:** 2026-07-09 00:46
 **Dataset:** `data/gold/camiones.parquet` (61,160 filas)
 
 Pregunta que este informe busca responder: **¿puedo confiar en los indicadores comerciales (participación de mercado, rankings, tendencias por carrocería) que salen de este archivo?**
@@ -18,9 +18,9 @@ Consolidado final (camiones.parquet)      61160   3.808181e+09         1.359575e
 
 Reducción bronze → final: **35.1%** (excluidas por partida no-camión, vans, duplicados, exclusiones de negocio como pickups — ver `scripts/auditar_embudo_importador.py` para el detalle por importador/razón.)
 
-**[ALERTA] 3,861 filas (6.31%)** tienen `peso_bruto_desc` vacío pero `kg_bruto_col` presente. El dashboard (`pages/2_Camiones.py::MAPEO_COLS`) usa `kg_bruto_col` como fallback para calcular `segmento_peso` ('Categoría Withmory') — pero `kg_bruto_col` es en realidad **peso neto**, no bruto (confirmado 2026-07-08, ver `informe_calidad_datos.md`). Estas filas probablemente están en un segmento de peso más bajo del que les corresponde. No corregido en el dashboard todavía — el pipeline (`categoria_atu`) ya no usa este fallback desde hoy.
+**[ALERTA] 3,861 filas (6.31%)** tienen `peso_bruto_desc` vacío. `kg_bruto_col` es en realidad **peso neto**, no bruto (confirmado 2026-07-08, ver `informe_calidad_datos.md`), así que no hay forma determinística de recuperar el peso bruto para estas filas. **Corregido 2026-07-08 (PR #10)**: tanto el pipeline (`categoria_atu`) como el dashboard (`pages/2_Camiones.py::MAPEO_COLS`) ya no usan `kg_bruto_col` como fallback — estas filas quedan como "SIN DATO" en vez de un segmento de peso incorrecto.
 
-**[ALERTA] Bug confirmado en `pages/2_Camiones.py::clasificar_segmento()`:** cuando `pb` llega como `NaN` (no `None`, no string vacío — un float `NaN` real, que es exactamente cómo llegan los 3,861 valores faltantes desde el parquet), `float(pb)` NO lanza excepción y `NaN <= 0` da `False` en Python, así que la fila cae sin querer en el último `return "PESADO"` de la función — **el segmento más pesado**, no "SIN DATO". Confirmado y reproducido el 2026-07-08. Este informe usa una copia corregida de la función (ver comentario en el código fuente); el dashboard en producción sigue con el bug.
+**Bug histórico en `pages/2_Camiones.py::clasificar_segmento()`** (ya corregido, 2026-07-08, PR #10): cuando `pb` llegaba como `NaN` (no `None`, no string vacío — un float `NaN` real, que es exactamente cómo llegan los 3,861 valores faltantes desde el parquet), `float(pb)` no lanzaba excepción y `NaN <= 0` daba `False` en Python, así que la fila caía sin querer en el último `return "PESADO"` de la función — el segmento más pesado, no "SIN DATO". La función del dashboard ahora tiene el mismo chequeo explícito de `pd.isna(pb)` que ya usaba la copia local de este informe.
 
 
 ---
@@ -140,8 +140,9 @@ Con 95% de confianza y margen de error del 5% sobre 61,158 filas clasificadas, e
 **KAMA / KAMAZ** — total combinado: 102 unidades
   - KAMA: 100
   - KAMAZ: 2
+  - **[EXCEPCIÓN CONFIRMADA]** No consolidar -- KAMAZ es un fabricante ruso distinto -- decision de negocio confirmada 2026-07-08, no se consolidan aunque el nombre se parezca.
 
-*Estas variantes probablemente son la misma marca comercial escrita distinto — consolidarlas evita subestimar su participación de mercado en los rankings.*
+*Todos los grupos detectados por similitud de texto están marcados como excepción confirmada -- no se recomienda consolidar ninguno.*
 
 
 ---
