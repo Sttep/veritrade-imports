@@ -110,6 +110,70 @@ def marcas_ya_cubiertas_por_cobertura(vt_anio: pd.DataFrame, anio: int) -> set[s
     return cubiertas
 
 
+def patron_historico(vt: pd.DataFrame, meses_ventana: int = 6,
+                      min_filas_importador: int = MIN_FILAS_IMPORTADOR) -> pd.DataFrame:
+    """Para cada (marca, importador), en cuántos de los últimos meses_ventana períodos
+    calendario (año-mes real, cruza el límite de año si hace falta) tuvo al menos 1 unidad --
+    la "huella" histórica esperada. Es el catálogo pedido por el jefe, pero derivado de
+    camiones.parquet en el momento, no un archivo aparte que se pueda desincronizar."""
+    vt = vt.copy()
+    vt["_periodo"] = pd.to_datetime(vt["fecha_dua"], errors="coerce").dt.to_period("M")
+    periodo_max = vt["_periodo"].max()
+    ventana = pd.period_range(end=periodo_max, periods=meses_ventana, freq="M")
+
+    sub = vt[vt["_periodo"].isin(ventana)]
+    tot = sub.groupby(["marca_normalizada", "importador"]).size()
+    combos = tot[tot >= min_filas_importador].index
+
+    filas = []
+    for marca, imp in combos:
+        s = sub[(sub["marca_normalizada"] == marca) & (sub["importador"] == imp)]
+        meses_presentes = s["_periodo"].nunique()
+        filas.append({
+            "marca": marca, "importador": imp,
+            "meses_presentes": meses_presentes, "meses_ventana": len(ventana),
+            "regularidad": round(meses_presentes / len(ventana), 2),
+        })
+    return pd.DataFrame(filas).sort_values("regularidad", ascending=False).reset_index(drop=True)
+
+
+def analizar_patron_mes_actual(vt: pd.DataFrame, meses_ventana: int = 6, umbral_regular: float = 0.5,
+                                min_filas_importador: int = MIN_FILAS_IMPORTADOR) -> list[dict]:
+    """Compara el patrón histórico (los meses_ventana períodos anteriores al más reciente) contra
+    el mes más reciente disponible -- importadores "regulares" (regularidad >= umbral_regular) que
+    no aparecen en el mes más reciente quedan marcados como posible hueco. Confianza MENOR que un
+    cero flanqueado (detectar_ceros_sospechosos): el mes más reciente puede ser rezago normal de
+    DUAs todavía sin registrar, no necesariamente un gap real -- mismo criterio de cautela que usa
+    validar_cobertura.py para brechas "leves"."""
+    vt = vt.copy()
+    vt["_periodo"] = pd.to_datetime(vt["fecha_dua"], errors="coerce").dt.to_period("M")
+    periodo_actual = vt["_periodo"].max()
+    ventana_historica = pd.period_range(end=periodo_actual - 1, periods=meses_ventana, freq="M")
+
+    hist = vt[vt["_periodo"].isin(ventana_historica)]
+    actual = vt[vt["_periodo"] == periodo_actual]
+
+    tot_hist = hist.groupby(["marca_normalizada", "importador"]).size()
+    combos = tot_hist[tot_hist >= min_filas_importador].index
+    presentes_actual = set(actual.groupby(["marca_normalizada", "importador"]).size().index)
+
+    resultados = []
+    for marca, imp in combos:
+        s = hist[(hist["marca_normalizada"] == marca) & (hist["importador"] == imp)]
+        meses_presentes = s["_periodo"].nunique()
+        regularidad = meses_presentes / len(ventana_historica)
+        if regularidad < umbral_regular:
+            continue
+        if (marca, imp) in presentes_actual:
+            continue
+        resultados.append({
+            "marca": marca, "importador": imp,
+            "meses_presentes_historico": meses_presentes, "ventana": len(ventana_historica),
+            "regularidad": round(regularidad, 2), "periodo_actual": str(periodo_actual),
+        })
+    return sorted(resultados, key=lambda r: -r["regularidad"])
+
+
 def _fecha_es(d: date) -> str:
     return f"{d.day} de {MESES_ES[d.month]} de {d.year}"
 
@@ -185,6 +249,14 @@ def main() -> int:
                      help=f"Ignorar importadores con menos de N filas en el período (default {MIN_FILAS_IMPORTADOR})")
     ap.add_argument("--no-markdown", action="store_true",
                      help="No escribir/actualizar informe_auditoria_cobertura.md")
+    ap.add_argument("--patron", action="store_true",
+                     help="Chequeo mensual rutinario: compara el patron historico de los ultimos "
+                          "--meses-ventana meses contra el mes mas reciente disponible, sin "
+                          "necesitar ninguna descarga nueva. Reemplaza el barrido manual mensual.")
+    ap.add_argument("--meses-ventana", type=int, default=6,
+                     help="Tamaño de la ventana historica para --patron (default 6 meses)")
+    ap.add_argument("--umbral-regular", type=float, default=0.5,
+                     help="Regularidad minima (0-1) para considerar un importador 'regular' en --patron (default 0.5)")
     args = ap.parse_args()
 
     vt_path = ROOT / "data" / "gold" / "camiones.parquet"
@@ -192,6 +264,30 @@ def main() -> int:
         print("ERROR: no se encontro data/gold/camiones.parquet")
         return 1
     vt = pd.read_parquet(vt_path)
+
+    if args.patron:
+        resultados = analizar_patron_mes_actual(
+            vt, meses_ventana=args.meses_ventana, umbral_regular=args.umbral_regular,
+            min_filas_importador=args.min_filas_importador,
+        )
+        periodo_actual = pd.to_datetime(vt["fecha_dua"], errors="coerce").dt.to_period("M").max()
+        print(f"\n{'=' * 65}")
+        print(f"  PATRÓN HISTÓRICO  —  ¿qué falta en {periodo_actual}?")
+        print(f"{'=' * 65}")
+        print(f"  Ventana histórica: {args.meses_ventana} meses | umbral regularidad: {args.umbral_regular:.0%}")
+        print("  Confianza MENOR que un cero flanqueado -- el mes más reciente puede ser rezago")
+        print("  normal de DUAs todavía sin registrar, no necesariamente un gap real.\n")
+        if not resultados:
+            print(f"  Ningún importador regular está ausente en {periodo_actual}. Nada que verificar.")
+        else:
+            print(f"  {len(resultados)} importador(es) regular(es) ausentes este mes "
+                  f"-- candidatos a verificar por descarga puntual:\n")
+            for r in resultados:
+                print(f"  [ ] {r['marca']:<18} {r['importador']}  "
+                      f"(presente {r['meses_presentes_historico']}/{r['ventana']} meses históricos, "
+                      f"regularidad {r['regularidad']:.0%})")
+        print(f"\n{'=' * 65}\n")
+        return 0
 
     vt["_dt"] = pd.to_datetime(vt["fecha_dua"], errors="coerce")
     anio = args.anio or int(vt["_dt"].dt.year.max())

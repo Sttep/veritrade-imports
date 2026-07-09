@@ -4,6 +4,8 @@
 data/bronze/*.xlsx
 data/silver/*.xlsx
 data/silver/*.parquet
+# Cuarentena: descargas de Veritrade sin revisar por gatekeeper-datos todavia (privados)
+data/cuarentena/*.xlsx
 # Parquets Gold sí se versionan (servidos por Streamlit Cloud), pero los
 # intermedios por archivo (*_normalizado.parquet) no son el consolidado final.
 !data/gold/*.parquet
