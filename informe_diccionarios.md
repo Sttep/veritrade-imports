@@ -6,14 +6,14 @@
 
 ## Resumen
 
-- **Total hallazgos:** 13
+- **Total hallazgos:** 12
 
 ---
 
 ### Marca con resultado distinto según pase por reglas (silver) o LLM (gold)
 - Estas marcas normalizan distinto según el camino que tome la fila (confianza=ALTA usa reglas, confianza=BAJA pasa por LLM) -- resultado inconsistente para el mismo texto declarado.
-- Hallazgos: 1
-  - QINGLING: reglas→ISUZU vs LLM→QINGLING
+- Hallazgos: 0
+- Sin hallazgos
 
 ### Bug de precedencia: marca es clave de 'marcas' Y de 'aliases' (el alias nunca se aplica)
 - Mismo bug corregido para SINOTRUK/IVECO/PEREYRA en 2026-07-08 -- Vocab.marca_canonica() revisa _marca_idx antes que _alias_idx.
@@ -49,7 +49,7 @@
 
 | Check | Hallazgos |
 |---|---|
-| Marca con resultado distinto según pase por reglas (silver) o LLM (gold) | 1 |
+| Marca con resultado distinto según pase por reglas (silver) o LLM (gold) | 0 |
 | Bug de precedencia: marca es clave de 'marcas' Y de 'aliases' (el alias nunca se aplica) | 1 |
 | marca_norm en camiones.parquet ausente de ambos catálogos | 11 |
 | marca_bruta repetida con distinto marca_normalizada en hoja 'marcas' | 0 |

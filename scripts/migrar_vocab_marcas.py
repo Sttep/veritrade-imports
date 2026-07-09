@@ -16,6 +16,13 @@ marcas redundantes dentro de la marca canónica, LUEGO borra esas claves de
 
 KAMA/KAMAZ no se tocan (decisión de negocio: son marcas distintas).
 
+NOTA (2026-07-09): agrega QINGLING->ISUZU -- configuracion.xlsx ya traía esa
+decisión (marca_bruta=QINGLING -> marca_normalizada=ISUZU), pero
+vocab_extra.json la dejaba como marca propia sin alias, así que una fila
+QINGLING con confianza=baja (camino LLM) hubiera quedado sin consolidar.
+Detectado por scripts/validar_diccionarios.py. Impacto real hoy: 0 filas
+(las 11 filas QINGLING existentes ya resuelven a ISUZU vía reglas_alta).
+
 Uso:
   uv run python scripts/migrar_vocab_marcas.py              # dry-run, solo reporta
   uv run python scripts/migrar_vocab_marcas.py --apply       # escribe (con backup)
@@ -36,6 +43,7 @@ FUSIONAR_EN_SINOTRUK = [
     "SINOTRUK HOMAN", "SINOTRUK SITRAK C7H", "HOMAN",
 ]
 FUSIONAR_EN_IVECO = ["IVECO ASTRA"]
+FUSIONAR_EN_ISUZU = ["QINGLING"]
 
 # aliases nuevos a agregar (raw -> canónico)
 ALIASES_NUEVOS = {
@@ -51,6 +59,7 @@ ALIASES_NUEVOS = {
     "IVECO ASTRA": "IVECO",
     "ASTRA": "IVECO",
     "PEREYRA": "CP PEREYRA",
+    "QINGLING": "ISUZU",
 }
 
 
@@ -67,7 +76,8 @@ def main() -> int:
     n_fusionadas = 0
     n_modelos_movidos = 0
     for clave, destino in [(k, "SINOTRUK") for k in FUSIONAR_EN_SINOTRUK] + \
-                           [(k, "IVECO") for k in FUSIONAR_EN_IVECO]:
+                           [(k, "IVECO") for k in FUSIONAR_EN_IVECO] + \
+                           [(k, "ISUZU") for k in FUSIONAR_EN_ISUZU]:
         if clave not in marcas:
             continue
         modelos_a_mover = marcas[clave]
