@@ -19,11 +19,14 @@ Uso:
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from scripts.generar_informe_auditoria_comercial import _num  # noqa: E402
 
 COLUMNAS_EXPORT = [
     "dua_dam", "fecha_dua", "importador", "partida",
@@ -41,7 +44,7 @@ def main() -> int:
     marca = df["marca_norm"].astype("string").str.upper().str.strip()
     hino = df[marca == "HINO"][[c for c in COLUMNAS_EXPORT if c in df.columns]].copy()
 
-    pb = pd.to_numeric(hino["peso_bruto_desc"], errors="coerce") if "peso_bruto_desc" in hino.columns else pd.Series(dtype=float)
+    pb = _num(hino["peso_bruto_desc"]) if "peso_bruto_desc" in hino.columns else pd.Series(dtype=float)
     n_sin_pb = int(pb.isna().sum())
     n_standard = int((hino["modelo_match"].astype("string").str.upper().str.strip() == "STANDARD").sum()) \
         if "modelo_match" in hino.columns else 0
