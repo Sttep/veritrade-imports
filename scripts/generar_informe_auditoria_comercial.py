@@ -30,7 +30,7 @@ SILVER_DIR = ROOT / "data" / "silver"
 GOLD_DIR = ROOT / "data" / "gold"
 
 sys.path.insert(0, str(ROOT))
-from pipeline.silver import PARTIDAS_CAMION  # noqa: E402 (no se usa hoy, referencia futura)
+from pipeline.silver import PARTIDAS_CAMION  # noqa: E402,F401 (no se usa hoy, referencia futura)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

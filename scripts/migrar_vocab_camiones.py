@@ -41,7 +41,6 @@ def main() -> None:
         modelos_por_marca.setdefault(marca, []).extend(nuevos)
 
     vocab = json.loads(VOCAB_PATH.read_text(encoding="utf-8"))
-    existentes = set(vocab.get("marcas", {}).keys())
 
     agregadas, actualizadas = 0, 0
     for marca in marcas_norm:
