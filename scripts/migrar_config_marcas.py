@@ -5,9 +5,15 @@ Consolida en `configuracion.xlsx` las familias de marca fragmentadas
 detectadas en la sección 6 del informe de auditoría comercial:
 
 - SINOTRUK: SINOTRUK, HOWO, HOWO MAX, SINOTRUK HOWO, SITRAK, WANGPAI,
-  SINOTRUK WANGPAI, HOMAN, HONAN, SINOTRUK HONAN -> marca_normalizada=SINOTRUK
+  SINOTRUK WANGPAI, HOMAN, HONAN, SINOTRUK HONAN, SINOTRUK SITRAK C7H
+  -> marca_normalizada=SINOTRUK
 - IVECO: IVECO, IVECO ASTRA, ASTRA -> marca_normalizada=IVECO
 - PEREYRA: PEREYRA -> CP PEREYRA (mismo actor comercial, nombre corto vs largo)
+
+NOTA: SINOTRUK HOMAN y SINOTRUK SITRAK C7H se agregaron en un segundo paso
+(2026-07-09) -- habian quedado corregidas en data/vocab_extra.json pero no
+aca, mismo bug de raiz que las demas variantes Sinotruk. 0 filas afectadas
+en camiones.parquet al momento del fix -- es preventivo para datos futuros.
 
 KAMA/KAMAZ NO se tocan -- son probablemente marcas distintas (KAMAZ es un
 fabricante ruso conocido), decisión de negocio confirmada explícitamente.
@@ -49,6 +55,8 @@ MARCAS_UPDATE = {
     "SINOTRUK WANGPAI": "SINOTRUK",
     "HOMAN": "SINOTRUK",
     "IVECO ASTRA": "IVECO",
+    "SINOTRUK HOMAN": "SINOTRUK",
+    "SINOTRUK SITRAK C7H": "SINOTRUK",
 }
 
 # marca_bruta -> marca_normalizada nueva (filas ausentes hoy, a agregar)

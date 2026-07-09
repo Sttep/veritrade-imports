@@ -42,6 +42,7 @@ CAMIONES_COLS = {
     "ejes": "ejes", "largo": "largo_mm", "ancho": "ancho_mm", "alto": "alto_mm",
     "fob": "fob_usd", "cif": "cif_usd", "descripcion": "_descripcion",
     "campos_core": ["marca_declarada", "modelo", "carroceria"],
+    "carroceria_normalizada": "carroceria_normalizada",
 }
 MAQUINARIA_COLS = {
     "vin": "vin", "chasis": "chasis", "dua": "dua_dam",
@@ -50,7 +51,10 @@ MAQUINARIA_COLS = {
     "ejes": None, "largo": None, "ancho": None, "alto": None,
     "fob": "fob_usd", "cif": "cif_usd", "descripcion": "_descripcion",
     "campos_core": ["marca", "categoria_maquinaria"],
+    "carroceria_normalizada": None,  # taxonomia distinta (categoria_maquinaria), no aplica
 }
+
+CONFIG_PATH = ROOT / "configuracion.xlsx"
 
 MOJIBAKE_SNIPPETS = ["�", "Ã¡", "Ã©", "Ã­", "Ã³", "Ãº", "Ã±", "Ã‘", "Â°", "â€™", "â€œ", "â€\x9d"]
 MOJIBAKE_COLUMNAS = [
@@ -60,30 +64,13 @@ MOJIBAKE_COLUMNAS = [
 
 NOTAS_CODIGO = """## Notas de código (fuera de alcance de este script)
 
-Hallazgos incidentales detectados en el pipeline durante el diseño de este análisis. No se
-corrigen aquí — quedan documentados para una futura sesión de trabajo:
-
-- **`pipeline/gold.py` lee `confianza_clasificacion`, pero `pipeline/silver.py` escribe
-  `confianza`** (nombres distintos) → el atajo de "alta confianza" (que evita mandar la fila
-  al LLM) nunca se activa en producción; todas las filas pasan por el LLM aunque silver ya las
-  considerara confiables.
-- **`pipeline/build_parquet.py` elige `vin` o `chasis` como clave de dedup a nivel de columna
-  completa**, no fila por fila (`next(c for c in ("vin","chasis") if c in out.columns)`) — si
-  una fila puntual tiene `vin` nulo pero `chasis` con dato, igual se usa la columna `vin` para
-  esa fila (porque la columna existe), pudiendo generar una clave de dedup incompleta.
-- **`pipeline/gold.py` referencia `r.get("marca")`** en la rama de alta confianza, pero silver
-  nunca escribe una columna llamada `marca` (usa `marca_declarada`/`marca_normalizada`) —
-  código muerto hoy debido al bug anterior, pero quedaría roto si ese bug se corrige sin
-  también arreglar esto.
-- **`kg_bruto_col` (columna dura `kg_bruto` del Excel de Veritrade) no es peso bruto — es
-  esencialmente una copia de `peso_neto_desc`.** Medido: 62.5% de las filas coinciden dentro de
-  ±2% con `peso_neto_desc` (36.5% exacto), mediana del ratio `kg_bruto_col/peso_neto_desc` = 1.00.
-  Por eso `kg_bruto_col` difiere ~3x de `peso_bruto_desc` (código `PB:`) — no son dos fuentes de
-  peso bruto que discrepan, una de las dos simplemente no es peso bruto. Esto importa porque
-  `pipeline/silver.py:578` usa `kg_bruto_col` como *fallback* de `peso_para_atu` cuando falta
-  `peso_bruto_desc` — pasa en 3,857 filas (6.3%), donde `categoria_atu` (N1: 2,394 / N2: 1,463) se
-  calculó con lo que en realidad es el peso neto, probablemente subclasificando esas filas a una
-  categoría ATU más liviana de la que corresponde.
+Los 4 hallazgos incidentales que este bloque documentaba (mismatch `confianza`/
+`confianza_clasificacion` entre silver/gold, dedup por columna completa en vez de fila por fila
+en `build_parquet.py`, referencia muerta a `r.get("marca")` en `gold.py`, y `kg_bruto_col` como
+fallback de `peso_para_atu`) fueron **verificados como ya corregidos en el código actual**
+(re-auditoría 2026-07-09 -- ver `git blame`/commits de julio 2026 para cuándo se corrigió cada
+uno). Este bloque queda vacío a propósito -- si una futura auditoría encuentra un hallazgo de
+código nuevo fuera de alcance de este script, documentarlo aquí siguiendo el mismo formato.
 """
 
 
@@ -359,6 +346,46 @@ def check_fob_cif(df, nombre, cfg, max_ejemplos):
                        extra_series=cif, extra_label=cif_col)
 
 
+def check_carroceria_fuera_catalogo(df, nombre, cfg, max_ejemplos):
+    titulo = "Carrocería fuera del catálogo conocido (configuracion.xlsx)"
+    col = cfg.get("carroceria_normalizada")
+    if not col or col not in df.columns:
+        return _no_aplica(titulo)
+    if not CONFIG_PATH.exists():
+        return _no_aplica(titulo, motivo="configuracion.xlsx no encontrado")
+    carrocerias = pd.ExcelFile(CONFIG_PATH).parse("carrocerias", dtype=str)
+    validos = set(carrocerias["valor"].dropna().str.upper().str.strip())
+
+    serie = df[col].astype(str).where(df[col].notna(), "").str.upper().str.strip()
+    con_dato = serie != ""
+    mask = con_dato & ~serie.isin(validos)
+    hallazgos = df[mask]
+
+    nota = None
+    if mask.any():
+        top = serie[mask].value_counts().head(10)
+        top_txt = ", ".join(f"{v}({n})" for v, n in top.items())
+        nota = f"Top valores no catalogados: {top_txt}"
+
+    return _resultado(titulo, int(con_dato.sum()), len(df), hallazgos, cfg, max_ejemplos, nota=nota)
+
+
+def check_formato_anio_modelo(df, nombre, cfg, max_ejemplos):
+    titulo = "Formato inconsistente de anio_modelo (string 'YYYY' vs 'YYYY.0')"
+    col = cfg.get("anio_modelo")
+    if not col or col not in df.columns:
+        return _no_aplica(titulo)
+    serie = df[col].astype(str).where(df[col].notna(), "")
+    con_dato = serie != ""
+    con_punto = serie.str.match(r"^\d+\.0$")
+    sin_punto = serie.str.match(r"^\d+$")
+    mask = con_dato & sin_punto & ~con_punto
+    hallazgos = df[mask]
+    nota = ("Numéricamente inofensivo (pd.to_numeric interpreta ambos formatos igual) -- "
+            "riesgo solo para filtros por string exacto.") if mask.any() else None
+    return _resultado(titulo, int(con_dato.sum()), len(df), hallazgos, cfg, max_ejemplos, nota=nota)
+
+
 CHECKS = [
     lambda df, nombre, cfg, me, anio_actual: check_duplicados_exactos(df, nombre, cfg, me),
     lambda df, nombre, cfg, me, anio_actual: check_vin_duplicado_entre_dua(df, nombre, cfg, me),
@@ -377,6 +404,8 @@ CHECKS = [
     lambda df, nombre, cfg, me, anio_actual: check_marca_fuera_vocab(df, nombre, cfg, me),
     lambda df, nombre, cfg, me, anio_actual: check_mojibake(df, nombre, cfg, me),
     lambda df, nombre, cfg, me, anio_actual: check_fob_cif(df, nombre, cfg, me),
+    lambda df, nombre, cfg, me, anio_actual: check_carroceria_fuera_catalogo(df, nombre, cfg, me),
+    lambda df, nombre, cfg, me, anio_actual: check_formato_anio_modelo(df, nombre, cfg, me),
 ]
 
 
