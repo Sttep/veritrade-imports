@@ -46,7 +46,8 @@
     "SINOTRUK SITRAK C7H": "SINOTRUK",
     "IVECO ASTRA": "IVECO",
     "ASTRA": "IVECO",
-    "PEREYRA": "CP PEREYRA"
+    "PEREYRA": "CP PEREYRA",
+    "QINGLING": "ISUZU"
   },
   "marcas": {
     "CATERPILLAR": [
@@ -1450,7 +1451,22 @@
       "QL5210TZZU2ADRY",
       "QL5350THBW1SDZY",
       "QL5350TZZWUVDZY",
-      "SCS1100A8K"
+      "SCS1100A8K",
+      "700P",
+      "QL10403EARY",
+      "QL1044AMHA",
+      "QL1044AMHAY",
+      "QL1071A6HAY",
+      "QL1072A6KAY",
+      "QL10909KARY",
+      "QL11009MAR1Y",
+      "QL1100A8MAY",
+      "QL1100A8MHY",
+      "QL11019MARY",
+      "QL11019PARY",
+      "QL1110ANLACY",
+      "QL1180JQFRY",
+      "QL5210TZZU2QDRY"
     ],
     "IVECO": [
       "AS440X46T/P",
@@ -1724,24 +1740,6 @@
     "PUTZMEISTER": [],
     "QIJING": [
       "QHV5180JSQDF"
-    ],
-    "QINGLING": [
-      "700P",
-      "QL10403EARY",
-      "QL1044AMHA",
-      "QL1044AMHAY",
-      "QL1071A6HAY",
-      "QL1072A6KAY",
-      "QL10909KARY",
-      "QL11009MAR1Y",
-      "QL1100A8MAY",
-      "QL1100A8MHY",
-      "QL11019MARY",
-      "QL11019PARY",
-      "QL1110ANLACY",
-      "QL1180JQFRY",
-      "QL1250U4SDZY",
-      "QL5210TZZU2QDRY"
     ],
     "QINJI": [
       "35B402"
