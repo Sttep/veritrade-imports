@@ -34,3 +34,8 @@ exclude = ["_legacy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "playwright>=1.61.0",
+]
