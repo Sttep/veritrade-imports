@@ -195,7 +195,6 @@ class Config:
         self.modelos:          dict[str,set]    = {}
         self.carroceria_map:   dict[str,str]    = {}
         self.excluir_set:      set[str]         = set()
-        self.sinotruk_map:     dict[str,str]    = {}
         self.importador_tipo:  dict[str,str]    = {}
         self.estados_nuevos:   set[str]         = {
             "NUEVO","NUEVA","NEW","NUEVO/0 KM","0 KM","SIN USO",
@@ -204,7 +203,6 @@ class Config:
         self._cargar(path)
         print(f"  Config: {len(self.marcas_set)} marcas · "
               f"{len(self.carroceria_map)} carrocerías · "
-              f"{len(self.sinotruk_map)} variantes Sinotruk · "
               f"{len(self.importador_tipo)} importadores clasificados")
 
     def _cargar(self, path: Path):
@@ -249,15 +247,6 @@ class Config:
             df = xl.parse("excluir", dtype=str).iloc[:, 0].dropna()
             self.excluir_set = set(df.str.upper().str.strip())
 
-        if "sinotruk" in xl.sheet_names:
-            df = xl.parse("sinotruk", dtype=str).dropna()
-            cols = df.columns.tolist()
-            for _, row in df.iterrows():
-                k = str(row[cols[0]]).upper().strip()
-                v = str(row[cols[1]]).upper().strip()
-                if k and v:
-                    self.sinotruk_map[k] = v
-
         if "importadores" in xl.sheet_names:
             df = xl.parse("importadores", dtype=str).dropna(subset=["importador"])
             for _, row in df.iterrows():
@@ -273,8 +262,6 @@ class Config:
         self.modelos         = {}
         self.carroceria_map  = {}
         self.excluir_set     = set()
-        self.sinotruk_map    = {"SINOTRUK":"SINOTRUK","HOWO":"SINOTRUK HOWO",
-                                "SITRAK":"SINOTRUK SITRAK","HOMAN":"SINOTRUK HONAN"}
         self.importador_tipo = {}
         self.estados_nuevos  = {"NUEVO","NUEVA","NEW","0 KM","SIN USO"}
 
@@ -348,6 +335,17 @@ def _build_code_pattern() -> re.Pattern:
 
 CODE_PATTERN = _build_code_pattern()
 
+# Algunas descripciones traen "Año 2026" como texto libre (sin ":") en vez del
+# código "AÑO MOD:2026" -- CODE_PATTERN exige ":" para reconocer el límite de
+# campo, así que sin esto el año queda pegado al valor de MODELO y anio_modelo
+# nunca se puebla. Insertamos el ":" faltante antes de tokenizar.
+# Nota: "AÑO FABR." (año de fabricación, distinto de año modelo) se deja sin
+# tocar a propósito -- no hay código para eso en CODES, y forzarlo a
+# "AÑO MOD" pisaría el año modelo real cuando ambos aparecen en la misma
+# descripción (caso raro, ~8 filas históricas).
+ANIO_MOD_SUELTO_PATTERN = re.compile(r"\bA[ÑN]O\s*MOD\.?\s*[:=]?\s*(\d{4})\b", re.IGNORECASE)
+ANIO_SUELTO_PATTERN = re.compile(r"\bA[ÑN]O\s+(\d{4})\b", re.IGNORECASE)
+
 
 def _convertir(valor: str, tipo: str):
     valor = valor.strip().upper()
@@ -384,6 +382,8 @@ def _convertir(valor: str, tipo: str):
 def parsear_descripcion(texto: str) -> dict:
     if not texto or not isinstance(texto, str) or texto.strip() in ("nan","None",""):
         return {}
+    texto = ANIO_MOD_SUELTO_PATTERN.sub(r"AÑO MOD:\1", texto)
+    texto = ANIO_SUELTO_PATTERN.sub(r"AÑO MOD:\1", texto)
     resultado: dict = {}
     for match in CODE_PATTERN.finditer(texto):
         code  = match.group(1).strip().upper()
@@ -588,9 +588,11 @@ def procesar_fila(row: pd.Series, cfg: Config) -> dict:
 
     modelo = extraido.get("modelo") or posicional.get("_modelo_pos")
 
-    submarca_sinotruk = None
-    if marca_declarada:
-        submarca_sinotruk = cfg.sinotruk_map.get(str(marca_declarada).upper().strip())
+    # submarca = texto tal cual lo declaró el importador, sin normalizar -- a
+    # diferencia de marca_normalizada (que consolida familias como SINOTRUK/
+    # HOWO/SITRAK en una sola marca), submarca preserva la variante exacta
+    # para poder ver cómo la nombra cada importador.
+    submarca = marca_declarada
 
     carroceria_raw  = extraido.get("carroceria") or posicional.get("_carroceria_pos")
     carroceria_norm = normalizar_carroceria(carroceria_raw, cfg)
@@ -626,7 +628,7 @@ def procesar_fila(row: pd.Series, cfg: Config) -> dict:
         "estado":               row.get("estado"),
         "marca_declarada":      marca_declarada,
         "marca_normalizada":    marca_normalizada,
-        "submarca_sinotruk":    submarca_sinotruk,
+        "submarca":             submarca,
         "modelo":               modelo,
         "version":              extraido.get("version"),
         "anio_modelo":          extraido.get("anio_modelo"),

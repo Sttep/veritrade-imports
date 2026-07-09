@@ -1,5 +1,5 @@
 # Informe de Auditoría de Datos y Calidad Comercial — Camiones
-**Fecha de generación:** 2026-07-08 18:06
+**Fecha de generación:** 2026-07-08 22:27
 **Dataset:** `data/gold/camiones.parquet` (61,160 filas)
 
 Pregunta que este informe busca responder: **¿puedo confiar en los indicadores comerciales (participación de mercado, rankings, tendencias por carrocería) que salen de este archivo?**
@@ -10,13 +10,13 @@ Pregunta que este informe busca responder: **¿puedo confiar en los indicadores 
 **Origen real de los datos: bronze de Veritrade (no hay un extracto SUNAT independiente contra el cual comparar) — el control es bronze → silver → gold → consolidado final, dentro de nuestro propio pipeline.**
 
                                Etapa  Registros  CIF Total USD  Peso Bruto Total KG
-     Bronze (crudo, incl. excluidos)     341433   6.468272e+09         2.237091e+09
-        Válidas post-silver (a gold)      94153   5.647908e+09         2.166723e+09
+     Bronze (crudo, incl. excluidos)      94187   5.649433e+09         2.167657e+09
+        Válidas post-silver (a gold)      94125   5.645892e+09         2.165799e+09
 Consolidado final (camiones.parquet)      61160   3.808181e+09         1.359575e+09
 
 **Unidades finales: 61,160** (1 fila = 1 unidad, deduplicado por DUA+VIN/chasis).
 
-Reducción bronze → final: **82.1%** (excluidas por partida no-camión, vans, duplicados, exclusiones de negocio como pickups — ver `scripts/auditar_embudo_importador.py` para el detalle por importador/razón.)
+Reducción bronze → final: **35.1%** (excluidas por partida no-camión, vans, duplicados, exclusiones de negocio como pickups — ver `scripts/auditar_embudo_importador.py` para el detalle por importador/razón.)
 
 **[ALERTA] 3,861 filas (6.31%)** tienen `peso_bruto_desc` vacío pero `kg_bruto_col` presente. El dashboard (`pages/2_Camiones.py::MAPEO_COLS`) usa `kg_bruto_col` como fallback para calcular `segmento_peso` ('Categoría Withmory') — pero `kg_bruto_col` es en realidad **peso neto**, no bruto (confirmado 2026-07-08, ver `informe_calidad_datos.md`). Estas filas probablemente están en un segmento de peso más bajo del que les corresponde. No corregido en el dashboard todavía — el pipeline (`categoria_atu`) ya no usa este fallback desde hoy.
 
@@ -98,27 +98,27 @@ Resolver las 6 marcas de arriba cubre la mayoría de este bucket — si concentr
 
 ### Top 20 combinaciones Marca + Modelo
 
-marca_norm     modelo_match  unidades
-      FUSO           CANTER      2832
-     ISUZU NPR75L-KL5VAYPEN      2745
-     VOLVO        FMX 6X4 R      2001
-     VOLVO         FH 6X4 T      1902
-      HINO            DUTRO      1712
-     VOLVO        FMX 8X4 R      1438
-  SINOTRUK    ZZ3257V364HE1      1389
-      HINO         STANDARD      1290
-     ISUZU NPR75L-HL5VAYPEN      1200
-     ISUZU              FRR      1104
-     VOLVO         FM 6X4 T       973
-     ISUZU NQR90L-MQ5VAYPEN       944
-     FOTON   BJ4269SNFKB-A4       923
-     ISUZU    FVR34UL-QDPES       826
-   SHACMAN     SX325862354C       690
-     ISUZU    FTR34UL-PDPEN       609
-     ISUZU NPS75L-HJ5VAYPEN       602
-    SCANIA        R500 A6X4       590
-  SINOTRUK    ZZ3168G3415E1       568
-   SHACMAN     SX331862306C       496
+   marca_norm     modelo_match  unidades
+         FUSO           CANTER      2832
+        ISUZU NPR75L-KL5VAYPEN      2745
+        VOLVO        FMX 6X4 R      2001
+        VOLVO         FH 6X4 T      1902
+         HINO            DUTRO      1712
+        VOLVO        FMX 8X4 R      1438
+     SINOTRUK    ZZ3257V364HE1      1403
+         HINO         STANDARD      1290
+        ISUZU NPR75L-HL5VAYPEN      1200
+        ISUZU              FRR      1104
+        VOLVO         FM 6X4 T       973
+        ISUZU NQR90L-MQ5VAYPEN       944
+        FOTON   BJ4269SNFKB-A4       923
+INTERNATIONAL        LT625 6X4       840
+        ISUZU    FVR34UL-QDPES       826
+      SHACMAN     SX325862354C       720
+ FREIGHTLINER NEW CASCADIA 116       662
+          JMC    CARRYING PLUS       661
+          JAC        HFC1040KN       643
+      HYUNDAI              EX8       612
 
 ### Combinaciones Marca-Modelo fuera del catálogo conocido (configuracion.xlsx)
 
@@ -137,34 +137,9 @@ Con 95% de confianza y margen de error del 5% sobre 61,158 filas clasificadas, e
 
 ## 6. Fragmentación de Marcas y Familias (Consolidación Comercial)
 
-**SINOTRUK / SINOTRUK HOWO / SINOTRUK WANGPAI** — total combinado: 5,131 unidades
-  - SINOTRUK: 5,105
-  - SINOTRUK HOWO: 23
-  - SINOTRUK WANGPAI: 3
-
-**HOWO / SINOTRUK HOWO** — total combinado: 529 unidades
-  - HOWO: 506
-  - SINOTRUK HOWO: 23
-
-**IVECO / IVECO ASTRA** — total combinado: 467 unidades
-  - IVECO: 387
-  - IVECO ASTRA: 80
-
 **KAMA / KAMAZ** — total combinado: 102 unidades
   - KAMA: 100
   - KAMAZ: 2
-
-**ASTRA / IVECO ASTRA** — total combinado: 95 unidades
-  - ASTRA: 15
-  - IVECO ASTRA: 80
-
-**WANGPAI / SINOTRUK WANGPAI** — total combinado: 8 unidades
-  - WANGPAI: 5
-  - SINOTRUK WANGPAI: 3
-
-**PEREYRA / CP PEREYRA** — total combinado: 10 unidades
-  - PEREYRA: 4
-  - CP PEREYRA: 6
 
 *Estas variantes probablemente son la misma marca comercial escrita distinto — consolidarlas evita subestimar su participación de mercado en los rankings.*
 

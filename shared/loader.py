@@ -31,7 +31,7 @@ MAPEO_COLUMNAS_CAMIONES = {
     'grupo_importador':    ['grupo_importador', 'importador_grupo', 'importador'],
     'valor_fob':           ['valor_fob', 'fob', 'fob_usd'],
     'valor_cif':           ['valor_cif', 'cif', 'cif_usd'],
-    'pb':                  ['peso_bruto_desc', 'kg_bruto_col', 'kg_bruto'],
+    'pb':                  ['peso_bruto_desc'],  # kg_bruto_col/kg_bruto es peso NETO, no bruto -- no usar como fallback
 }
 
 
