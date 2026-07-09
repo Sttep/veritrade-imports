@@ -48,7 +48,6 @@ SEG_COLORS = {
 }
 MARCA_PROPIA     = "SINOTRUK"
 IMPORTADOR_PROPIO= "CORPORATION WITHMORY S.R.L."
-SINOTRUK_KW      = ["SINOTRUK","HOWO","SITRAK","SINOTRUCK","WANGPAI","HONAN","HOMAN"]
 
 PAIS_ISO = {
     "CHINA":"CHN","BRASIL":"BRA","JAPÓN":"JPN","COLOMBIA":"COL","SUECIA":"SWE",
@@ -74,7 +73,7 @@ MAPEO_COLS = {
     'grupo_importador':    ['grupo_importador','importador_grupo','importador'],
     'valor_fob':           ['valor_fob','fob','fob_usd'],
     'valor_cif':           ['valor_cif','cif','cif_usd'],
-    'pb':                  ['peso_bruto_desc','kg_bruto_col','kg_bruto'],
+    'pb':                  ['peso_bruto_desc'],  # kg_bruto_col/kg_bruto es peso NETO, no bruto -- no usar como fallback
 }
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
@@ -165,6 +164,8 @@ def normalizar_carroceria(val):
 
 def clasificar_segmento(pb) -> str:
     """Clasifica por Peso Bruto Vehicular (kg) según rangos Withmory."""
+    if pd.isna(pb):
+        return "SIN DATO"
     try:
         pb = float(pb)
     except (TypeError, ValueError):
@@ -307,14 +308,10 @@ def insights_ejecutivos(df_act, df_ant, total_act, total_ant):
             ins.append({'tipo':'info','titulo':f'👑 Marca Líder: {top.index[0]}',
                         'texto':f'{top.values[0]:,} uds · {top.values[0]/total_act*100:.1f}% share'})
     if COL_MARCA in df_act.columns:
-        # Familia completa Sinotruk (mismo criterio que el tab)
-        mask_sin_act = df_act[COL_MARCA].astype(str).str.upper().str.contains(
-            "|".join(SINOTRUK_KW), na=False)
-        mask_sin_ant = df_ant[COL_MARCA].astype(str).str.upper().str.contains(
-            "|".join(SINOTRUK_KW), na=False) if COL_MARCA in df_ant.columns else pd.Series(False)
-        if 'submarca_sinotruk' in df_act.columns:
-            mask_sin_act = mask_sin_act | (df_act['submarca_sinotruk'].notna() &
-                                           (df_act['submarca_sinotruk'].str.strip()!=""))
+        # Familia completa Sinotruk -- marca_norm ya viene consolidada del pipeline
+        mask_sin_act = df_act[COL_MARCA].astype(str).str.upper().str.strip() == "SINOTRUK"
+        mask_sin_ant = (df_ant[COL_MARCA].astype(str).str.upper().str.strip() == "SINOTRUK") \
+            if COL_MARCA in df_ant.columns else pd.Series(False)
         n_sin = mask_sin_act.sum()
         n_ant = mask_sin_ant.sum() if len(mask_sin_ant) > 0 else 0
         if n_sin > 0:
@@ -494,9 +491,7 @@ df_anterior = df[(df['fecha']>=f_ini_a) & (df['fecha']<=f_fin_a)]
 es_sinotruk = "Sinotruk" in vista
 if es_sinotruk:
     def mask_sin(d):
-        m = d[COL_MARCA].astype(str).str.upper().str.contains("|".join(SINOTRUK_KW), na=False)
-        if 'submarca_sinotruk' in d.columns:
-            m = m | (d['submarca_sinotruk'].notna() & (d['submarca_sinotruk'].str.strip()!=""))
+        m = d[COL_MARCA].astype(str).str.upper().str.strip() == "SINOTRUK"
         return d[m]
     df_actual   = mask_sin(df_actual)
     df_anterior = mask_sin(df_anterior)
@@ -1121,17 +1116,11 @@ with tab2:
 # TAB 3 — SINOTRUK / WITHMORY
 # ══════════════════════════════════════════════════════════════════════════════
 with tab3:
-    m_sin = df_actual[COL_MARCA].astype(str).str.upper().str.contains("|".join(SINOTRUK_KW), na=False)
-    if 'submarca_sinotruk' in df_actual.columns:
-        m_sin = m_sin | (df_actual['submarca_sinotruk'].notna() &
-                         (df_actual['submarca_sinotruk'].str.strip()!=""))
+    m_sin = df_actual[COL_MARCA].astype(str).str.upper().str.strip() == "SINOTRUK"
     df_sin = df_actual[m_sin]
 
     # Mismo filtro para período anterior
-    m_sin_ant = df_anterior[COL_MARCA].astype(str).str.upper().str.contains("|".join(SINOTRUK_KW), na=False)
-    if 'submarca_sinotruk' in df_anterior.columns:
-        m_sin_ant = m_sin_ant | (df_anterior['submarca_sinotruk'].notna() &
-                                 (df_anterior['submarca_sinotruk'].str.strip()!=""))
+    m_sin_ant = df_anterior[COL_MARCA].astype(str).str.upper().str.strip() == "SINOTRUK"
     df_sin_ant = df_anterior[m_sin_ant]
 
     if df_sin.empty:
@@ -1199,8 +1188,7 @@ with tab3:
             # Cuota mensual % en el dataset completo — últimos 24 meses
             df_full_ms = df.copy()
             df_full_ms = df_full_ms[df_full_ms['fecha'].notna()].copy()
-            df_full_ms['_sin'] = df_full_ms[COL_MARCA].astype(str).str.upper().str.contains(
-                "|".join(SINOTRUK_KW), na=False)
+            df_full_ms['_sin'] = df_full_ms[COL_MARCA].astype(str).str.upper().str.strip() == "SINOTRUK"
             df_full_ms['_ym'] = df_full_ms['año'].astype(str) + '-' + df_full_ms['mes'].astype(str).str.zfill(2)
             ms_evo = (df_full_ms.groupby(['año','mes','mes_nombre','_ym'])
                       .agg(total=('_sin','count'), sin=('_sin','sum'))
@@ -1372,8 +1360,8 @@ with tab3:
 
         # ── Sub-marca declarada ──────────────────────────────────────────────────
         st.markdown("#### 🏷️ Sub-marca declarada en aduana")
-        sub = df_sin['submarca_sinotruk'].fillna(df_sin[COL_MARCA]) \
-              if 'submarca_sinotruk' in df_sin.columns else df_sin[COL_MARCA]
+        sub = df_sin['submarca'].fillna(df_sin[COL_MARCA]) \
+              if 'submarca' in df_sin.columns else df_sin[COL_MARCA]
         sub_vc = sub.value_counts().reset_index()
         sub_vc.columns = ['Sub-marca','Unidades']
         fig_sub = px.pie(sub_vc.head(8), values='Unidades', names='Sub-marca', hole=0.4,
