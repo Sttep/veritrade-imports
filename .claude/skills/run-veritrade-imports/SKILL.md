@@ -1,18 +1,22 @@
 ---
 name: run-veritrade-imports
-description: Build, run, and drive the veritrade-imports Streamlit dashboard. Use when asked to run/start the dashboard, take a screenshot of it, verify a dashboard change visually, or inspect what data a specific chart is showing (marca/submarca/segmento/etc).
+description: Build, run, and drive the veritrade-imports Streamlit dashboard. Use when asked to run/start the dashboard, take a screenshot of it, verify a dashboard change visually, inspect what data a specific chart is showing (marca/submarca/segmento/etc), or fuzz/stress-test it for bugs.
 ---
 
-This is a Python (uv) Streamlit app. It's driven two ways: a **real
+This is a Python (uv) Streamlit app. It's driven three ways: a **real
 headless-Chromium screenshot driver** (`driver.py`, via the `playwright`
 Python package — no `chromium-cli`/Node available in this environment,
-so this talks to Playwright directly) for visual/layout verification, and
-a **headless data-inspection driver** (`apptest_inventory.py`, via
+so this talks to Playwright directly) for visual/layout verification, a
+**headless data-inspection driver** (`apptest_inventory.py`, via
 Streamlit's own `AppTest` harness) for "what values are actually in chart
-X" questions without needing a server or a browser at all. Start with
+X" questions without needing a server or a browser at all, and a
+**fuzzer** (`fuzz_dashboard.py`, same `AppTest` harness) that
+automatically sweeps every widget/value combination looking for unhandled
+exceptions — see the `rompe-dashboard` agent
+(`.claude/agents/rompe-dashboard.md`) for adversarial QA. Start with
 `apptest_inventory.py` when you just need to confirm data is correct;
 reach for `driver.py` when you need to see layout/CSS or hand someone a
-picture.
+picture; reach for `fuzz_dashboard.py` when you need to find bugs.
 
 All paths below are relative to the repo root.
 
@@ -90,6 +94,32 @@ Exit code is `1` only on an **uncaught JS exception** (`page.on("pageerror")`)
 |---|---|
 | `--port <n>` | use a different port (default 8501) |
 | `--no-server` | drive an already-running instance instead of launching one |
+
+## Run (agent path) — fuzzing for bugs
+
+```bash
+PYTHONIOENCODING=utf-8 uv run python .claude/skills/run-veritrade-imports/fuzz_dashboard.py --random-n 15 --max-opciones 6
+```
+
+Three passes, no server/browser needed (same `AppTest` harness as
+`apptest_inventory.py`): a one-factor-at-a-time sweep of every radio/
+selectbox/multiselect value, a handful of hand-picked adversarial combos
+(inverted date range, `Marca A == Marca B`, empty carrocería filter,
+etc.), and `--random-n` random multi-widget combinations. Reports any
+combination that raises an uncaught exception, with the exact inputs and
+traceback. Exit code `1` if it found any crash.
+
+Baseline verified 2026-07-09: 101 cases (full sweep + 6 adversarial + 15
+random), 0 crashes. For real adversarial QA see the `rompe-dashboard`
+agent (`.claude/agents/rompe-dashboard.md`) — it knows this baseline and
+pushes further instead of just re-running it.
+
+| flag | what it does |
+|---|---|
+| `--random-n <n>` | how many random multi-widget combos to try (default 20) |
+| `--max-opciones <n>` | cap on values tried per selectbox in the sweep (default 8) — some selects have 50+ options |
+| `--skip-sweep` / `--skip-adversarial` / `--skip-random` | skip a pass |
+| `--page <path>` | fuzz a different page (default `pages/2_Camiones.py`) |
 
 ## Run (human path)
 
