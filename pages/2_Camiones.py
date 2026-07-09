@@ -69,7 +69,7 @@ COORDS = {
 MAPEO_COLS = {
     'marca_norm':          ['marca_norm','marca_normalizada','marca_declarada'],
     'modelo':              ['modelo_match','modelo','modelo_norm'],
-    'categoria_maquinaria':['categoria_maquinaria','carroceria_normalizada','carroceria'],
+    'categoria_carroceria':['categoria_maquinaria','carroceria_normalizada','carroceria'],
     'grupo_importador':    ['grupo_importador','importador_grupo','importador'],
     'valor_fob':           ['valor_fob','fob','fob_usd'],
     'valor_cif':           ['valor_cif','cif','cif_usd'],
@@ -162,8 +162,15 @@ def normalizar_carroceria(val):
     # COMPACTADOR, BARREDERA, MINIBUS, EXPLOSIVOS, PICK UP → OTROS
     return "OTROS"
 
-def clasificar_segmento(pb) -> str:
-    """Clasifica por Peso Bruto Vehicular (kg) según rangos Withmory."""
+def clasificar_segmento(pb, carroceria: str | None = None) -> str:
+    """Clasifica por Peso Bruto Vehicular (kg) según rangos Withmory.
+
+    Si carroceria ya es TRACTOCAMIÓN, se fuerza PESADO sin importar el peso
+    declarado -- decisión de negocio (2026-07-09): 93% de los tractocamiones de
+    Zapler (1,017 filas) declaran exactamente 33,000kg de fábrica y caían mal
+    clasificados en SEMI PESADO por el corte de peso puro."""
+    if carroceria == "TRACTOCAMIÓN":
+        return "PESADO"
     if pd.isna(pb):
         return "SIN DATO"
     try:
@@ -378,13 +385,13 @@ def cargar():
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
 
-    for col in ['categoria_maquinaria','marca_norm','grupo_importador']:
+    for col in ['categoria_carroceria','marca_norm','grupo_importador']:
         if col in df.columns:
             df[col] = df[col].astype(str).str.upper().str.strip()
             df[col] = df[col].replace(['NAN','NONE','NULL','',' '], pd.NA)
 
-    if 'categoria_maquinaria' in df.columns:
-        df['categoria_maquinaria'] = df['categoria_maquinaria'].apply(normalizar_carroceria)
+    if 'categoria_carroceria' in df.columns:
+        df['categoria_carroceria'] = df['categoria_carroceria'].apply(normalizar_carroceria)
     if 'combustible' in df.columns:
         df['combustible_norm'] = df['combustible'].apply(normalizar_combustible)
     if 'traccion' in df.columns:
@@ -395,7 +402,10 @@ def cargar():
         df['pb'] = pd.to_numeric(df['pb'], errors='coerce')
     else:
         df['pb'] = pd.NA
-    df['segmento_peso'] = df['pb'].apply(clasificar_segmento)
+    cat_para_segmento = (df['categoria_carroceria'] if 'categoria_carroceria' in df.columns
+                          else pd.Series([None] * len(df), index=df.index))
+    df['segmento_peso'] = [clasificar_segmento(pb, cat)
+                            for pb, cat in zip(df['pb'], cat_para_segmento)]
 
     for c in ['valor_fob','valor_cif','fob_usd','cif_usd']:
         if c in df.columns:
@@ -405,7 +415,7 @@ def cargar():
     if 'año' in df.columns:
         df['año'] = df['año'].apply(lambda x: int(x) if pd.notna(x) else pd.NA).astype('Int64')
 
-    for col in ['categoria_maquinaria','marca_norm','grupo_importador']:
+    for col in ['categoria_carroceria','marca_norm','grupo_importador']:
         if col in df.columns:
             df[col] = df[col].astype('category')
 
@@ -424,7 +434,7 @@ COL_CIF   = 'valor_cif' if 'valor_cif' in df.columns else None
 # ── HEADER ────────────────────────────────────────────────────────────────────
 # FIX CRÍTICO: años como int nativo (evita numpy.float64 en monthrange)
 años_disp = sorted([int(a) for a in df['año'].dropna().unique()])
-cats_disp = sorted([c for c in df['categoria_maquinaria'].dropna().unique()
+cats_disp = sorted([c for c in df['categoria_carroceria'].dropna().unique()
                     if c in CAT_REQUERIDAS])
 
 st.markdown('<div style="padding-top:8px"></div>', unsafe_allow_html=True)
@@ -516,8 +526,8 @@ with col_seg:
         cat_sel = st.multiselect("Carr.", cats_disp, default=cats_disp,
                                  label_visibility="collapsed", key="cat_sel")
         if cat_sel:
-            df_actual   = df_actual[df_actual['categoria_maquinaria'].isin(cat_sel)]
-            df_anterior = df_anterior[df_anterior['categoria_maquinaria'].isin(cat_sel)]
+            df_actual   = df_actual[df_actual['categoria_carroceria'].isin(cat_sel)]
+            df_anterior = df_anterior[df_anterior['categoria_carroceria'].isin(cat_sel)]
 
 total_act = len(df_actual)
 total_ant = len(df_anterior)
@@ -528,7 +538,7 @@ dias_año = 366 if año_fin_int%4==0 else 365
 proyeccion = int(total_act*dias_año/dias) if total_act>0 else 0
 df_ant_año = df[df['año']==año_fin_int-1]
 if cat_sel:
-    df_ant_año = df_ant_año[df_ant_año['categoria_maquinaria'].isin(cat_sel)]
+    df_ant_año = df_ant_año[df_ant_año['categoria_carroceria'].isin(cat_sel)]
 cierre_ant = len(df_ant_año)
 var_proy   = (proyeccion-cierre_ant)/cierre_ant*100 if cierre_ant>0 else 0
 
@@ -687,7 +697,7 @@ with tab1:
             fila = {'Carrocería': cat}
             prev = None
             for a in años_lista:
-                mask = (df_actual['año']==a) & (df_actual['categoria_maquinaria']==cat)
+                mask = (df_actual['año']==a) & (df_actual['categoria_carroceria']==cat)
                 val = int(mask.sum())
                 fila[str(a)] = val
                 if prev is not None and prev > 0:
@@ -703,7 +713,7 @@ with tab1:
 
     cl, cr = st.columns(2)
     with cl:
-        share = df_actual['categoria_maquinaria'].value_counts().reset_index()
+        share = df_actual['categoria_carroceria'].value_counts().reset_index()
         share.columns = ['Carrocería','Unidades']
         share['% Share'] = (share['Unidades']/share['Unidades'].sum()*100).round(1)
         fig_p = px.pie(share, values='Unidades', names='Carrocería', hole=0.4,
@@ -827,10 +837,10 @@ with tab2:
             # Top Modelos con Carrocería + precio
             if COL_MODELO in df_f.columns:
                 st.markdown("##### 🚛 Top Modelos")
-                top_mod = (df_f.groupby([COL_MODELO,'categoria_maquinaria'])
+                top_mod = (df_f.groupby([COL_MODELO,'categoria_carroceria'])
                            .size().reset_index(name='Uds')
                            .sort_values('Uds', ascending=False).head(10))
-                top_mod = top_mod.rename(columns={COL_MODELO:'Modelo','categoria_maquinaria':'Carrocería'})
+                top_mod = top_mod.rename(columns={COL_MODELO:'Modelo','categoria_carroceria':'Carrocería'})
                 if col_p and col_p in df_f.columns:
                     fob_m = df_f.groupby(COL_MODELO)[col_p].mean().reset_index()
                     fob_m.columns = [COL_MODELO, f'{nom_p} Prom']
@@ -841,7 +851,7 @@ with tab2:
 
             # Explorar carrocería específica
             with st.expander("🚛 Explorar carrocería específica"):
-                carr_data = df_f['categoria_maquinaria'].value_counts().reset_index()
+                carr_data = df_f['categoria_carroceria'].value_counts().reset_index()
                 carr_data.columns = ['Carrocería','Uds']
                 carr_data = carr_data[carr_data['Uds']>0]
                 if not carr_data.empty:
@@ -855,7 +865,7 @@ with tab2:
                     carrs = ['TODOS'] + list(carr_data['Carrocería'].unique())
                     carr_sel = st.selectbox("Selecciona carrocería:", carrs, key=f"carr_{actor}")
                     if carr_sel != 'TODOS' and COL_MODELO in df_f.columns:
-                        df_carr = df_f[df_f['categoria_maquinaria']==carr_sel]
+                        df_carr = df_f[df_f['categoria_carroceria']==carr_sel]
                         st.markdown(f"##### Modelos — {carr_sel}")
                         mods_carr = df_carr.groupby(COL_MODELO).size().reset_index(name='Uds')
                         if col_p and col_p in df_carr.columns:
@@ -1045,9 +1055,9 @@ with tab2:
                                        index=len(años_hh)-1, key="año_hh")
                 da_año = df_a[df_a['año']==año_sel]
                 db_año = df_b[df_b['año']==año_sel]
-                seg_a2 = da_año['categoria_maquinaria'].value_counts().reset_index()
+                seg_a2 = da_año['categoria_carroceria'].value_counts().reset_index()
                 seg_a2.columns = ['Carrocería', str(a_a)[:15]]
-                seg_b2 = db_año['categoria_maquinaria'].value_counts().reset_index()
+                seg_b2 = db_año['categoria_carroceria'].value_counts().reset_index()
                 seg_b2.columns = ['Carrocería', str(a_b)[:15]]
                 seg_h = seg_a2.merge(seg_b2, on='Carrocería', how='outer').fillna(0)
                 fig_seg_h = px.bar(seg_h.melt(id_vars='Carrocería',
@@ -1063,7 +1073,7 @@ with tab2:
                 for col_t, df_t, nom_t in [(ct_a, df_a, a_a), (ct_b, df_b, a_b)]:
                     with col_t:
                         st.markdown(f"**{nom_t[:25]}**")
-                        ev_s = (df_t.groupby(['año','categoria_maquinaria']).size()
+                        ev_s = (df_t.groupby(['año','categoria_carroceria']).size()
                                 .unstack(fill_value=0).reset_index())
                         ev_s.columns = ['Carrocería'] + [str(c) for c in ev_s.columns[1:]]
                         anios_t = [c for c in ev_s.columns if c != 'Carrocería']
@@ -1080,11 +1090,11 @@ with tab2:
                     with col_t:
                         st.markdown(f"**{nom_t[:25]}**")
                         if COL_MODELO in df_t.columns:
-                            tm = (df_t.groupby([COL_MODELO,'categoria_maquinaria'])
+                            tm = (df_t.groupby([COL_MODELO,'categoria_carroceria'])
                                   .size().reset_index(name='Uds')
                                   .sort_values('Uds',ascending=False).head(8))
                             tm = tm.rename(columns={COL_MODELO:'Modelo',
-                                                     'categoria_maquinaria':'Carrocería'})
+                                                     'categoria_carroceria':'Carrocería'})
                             if col_pc and col_pc in df_t.columns:
                                 fob_t = df_t.groupby(COL_MODELO)[col_pc].mean().reset_index()
                                 fob_t.columns = [COL_MODELO, f'{nom_pc} Prom']
@@ -1302,7 +1312,7 @@ with tab3:
 
             col_di1, col_di2, col_di3 = st.columns(3)
             col_di1.metric("📦 Unidades", f"{len(df_imp_det):,}")
-            col_di2.metric("📂 Segmentos", f"{df_imp_det['categoria_maquinaria'].nunique()}")
+            col_di2.metric("📂 Segmentos", f"{df_imp_det['categoria_carroceria'].nunique()}")
             n_mod_imp = df_imp_det[COL_MODELO].nunique() if COL_MODELO in df_imp_det.columns else 0
             col_di3.metric("🏗️ Modelos", f"{n_mod_imp}")
 
@@ -1386,15 +1396,15 @@ with tab3:
 
         st.divider()
         st.markdown("#### 🏗️ Top Modelos Sinotruk")
-        segmentos_disp_sin = ['TODOS'] + sorted(df_sin['categoria_maquinaria'].dropna().unique().tolist())
+        segmentos_disp_sin = ['TODOS'] + sorted(df_sin['categoria_carroceria'].dropna().unique().tolist())
         segmento_sel_sin = st.selectbox("Segmento:", segmentos_disp_sin, key="segmento_sel_sin")
         df_sin_modelos = (df_sin if segmento_sel_sin == 'TODOS'
-                          else df_sin[df_sin['categoria_maquinaria'] == segmento_sel_sin])
+                          else df_sin[df_sin['categoria_carroceria'] == segmento_sel_sin])
 
         if COL_MODELO in df_sin_modelos.columns and not df_sin_modelos.empty:
-            top_modelos_sin = df_sin_modelos.groupby([COL_MODELO,'categoria_maquinaria']).size().reset_index(name='Unidades')
+            top_modelos_sin = df_sin_modelos.groupby([COL_MODELO,'categoria_carroceria']).size().reset_index(name='Unidades')
             top_modelos_sin = top_modelos_sin.sort_values('Unidades', ascending=False).head(15)
-            top_modelos_sin = top_modelos_sin.rename(columns={COL_MODELO:'Modelo','categoria_maquinaria':'Segmento'})
+            top_modelos_sin = top_modelos_sin.rename(columns={COL_MODELO:'Modelo','categoria_carroceria':'Segmento'})
 
             col_precio_sin, nombre_precio_sin = None, None
             if COL_FOB and COL_FOB in df_sin_modelos.columns:
@@ -1471,7 +1481,7 @@ with tab3:
             st.info(f"No hay modelos Sinotruk en el segmento {segmento_sel_sin} para el período seleccionado.")
 
         st.divider()
-        carr_sin = df_sin['categoria_maquinaria'].value_counts().reset_index()
+        carr_sin = df_sin['categoria_carroceria'].value_counts().reset_index()
         carr_sin.columns = ['Carrocería','Unidades']
         carr_sin = carr_sin[carr_sin['Unidades']>0]
         fig_cs = px.bar(carr_sin, x='Carrocería', y='Unidades',

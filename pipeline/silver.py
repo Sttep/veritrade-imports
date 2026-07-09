@@ -12,6 +12,7 @@ Uso:
 
 from __future__ import annotations
 import argparse
+import json
 import re
 from pathlib import Path
 from datetime import datetime
@@ -32,6 +33,7 @@ ROOT        = Path(__file__).resolve().parent.parent
 INPUTS_DIR  = ROOT / "data" / "bronze"
 OUTPUTS_DIR = ROOT / "data" / "silver"
 CONFIG_PATH = ROOT / "configuracion.xlsx"
+EXCLUIR_ALLOWLIST_PATH = ROOT / "data" / "excluir_colisiones_permitidas.json"
 
 # Partidas no vehiculares (autos/SUV, maquinaria de construccion, montacargas,
 # juguetes a escala) que a veces se cuelan en los exports de Veritrade filtrados
@@ -467,6 +469,62 @@ def normalizar_carroceria(valor: str | None, cfg: Config) -> str | None:
     return v
 
 
+def _colisiones_excluir_set(excluir_set: set[str]) -> list[tuple[str, str]]:
+    """Pares (generico, especifico) donde 'generico' es substring de 'especifico',
+    ambos en el mismo excluir_set. Solo considera 'generico' con len>4 porque ese es
+    el umbral que activa el match por substring contra la descripcion (ver
+    debe_excluir, texto_excluido)."""
+    terminos = sorted(t for t in excluir_set if t)
+    colisiones = []
+    for a in terminos:
+        if len(a) <= 4:
+            continue
+        for b in terminos:
+            if a != b and a in b:
+                colisiones.append((a, b))
+    return colisiones
+
+
+def validar_excluir_set(excluir_set: set[str], permitir_generico: bool = False) -> None:
+    """Guardrail contra la regresion de 2026-07-09: el termino bare 'TRACTOR' volvio
+    a la hoja 'excluir' de configuracion.xlsx (ya se habia sacado en 79ff4be) y, al
+    ser substring de 'TRACTOR AGRICOLA' (mas especifico, tambien en el set), termino
+    excluyendo 28 tractocamiones reales via el match de texto en debe_excluir().
+
+    Compara las colisiones generico/especifico actuales contra
+    data/excluir_colisiones_permitidas.json (pares ya revisados, ej. familia
+    TRIMOTO/MOTO/CUATRIMOTO donde el termino corto SI debe capturar a los mas
+    especificos). Una colision nueva (no en el allowlist) aborta silver.py, salvo
+    que se pase --permitir-excluir-generico."""
+    if EXCLUIR_ALLOWLIST_PATH.exists():
+        permitidas = {
+            tuple(par) for par in json.loads(EXCLUIR_ALLOWLIST_PATH.read_text(encoding="utf-8"))
+        }
+    else:
+        permitidas = set()
+
+    nuevas = [c for c in _colisiones_excluir_set(excluir_set) if c not in permitidas]
+    if not nuevas:
+        return
+
+    detalle = "\n".join(f"    {a!r} es substring de {b!r}" for a, b in nuevas[:20])
+    if len(nuevas) > 20:
+        detalle += f"\n    ... y {len(nuevas) - 20} mas"
+
+    aviso = (
+        f"{len(nuevas)} colision(es) nueva(s) en la hoja 'excluir' de configuracion.xlsx "
+        f"(termino generico substring de uno mas especifico, ambos en el set):\n{detalle}\n\n"
+        f"  Un termino generico nuevo que ya cubre a uno mas especifico puede sobre-excluir "
+        f"(paso con 'TRACTOR' vs 'TRACTOR AGRICOLA' el 2026-07-09: excluyo 28 tractocamiones "
+        f"reales). Si es intencional, agregalo a "
+        f"{EXCLUIR_ALLOWLIST_PATH.relative_to(ROOT)} o corre con --permitir-excluir-generico."
+    )
+    if permitir_generico:
+        print(f"  ⚠  {aviso}")
+        return
+    raise SystemExit(f"\n  ❌ {aviso}\n")
+
+
 def debe_excluir(row: dict, cfg: Config) -> tuple[bool, str]:
     partida = str(row.get("partida") or "").strip()
     if partida in PARTIDAS_EXCLUIDAS:
@@ -822,6 +880,11 @@ def main():
     ap = argparse.ArgumentParser(description="Fase 1 (Silver) — Extractor Veritrade")
     ap.add_argument("--input", help="Archivo específico (omitir = todos en data/bronze/)")
     ap.add_argument("--force", action="store_true", help="Reprocesar aunque ya exista el silver")
+    ap.add_argument(
+        "--permitir-excluir-generico", action="store_true",
+        help="No abortar si hay colisiones nuevas (termino generico substring de uno mas "
+             "especifico) en la hoja 'excluir' -- degrada el guardrail a warning.",
+    )
     args = ap.parse_args()
 
     print("\n" + "═" * 60)
@@ -831,6 +894,7 @@ def main():
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
     cfg = Config(CONFIG_PATH)
+    validar_excluir_set(cfg.excluir_set, permitir_generico=args.permitir_excluir_generico)
 
     archivos = [Path(args.input)] if args.input else sorted(INPUTS_DIR.glob("*.xlsx"))
     archivos = [a for a in archivos if "reporte_app" not in a.name and "auditoria" not in a.name]

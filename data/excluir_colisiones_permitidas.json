@@ -1,0 +1,978 @@
+[
+  [
+    "AB MOTORS",
+    "AB MOTORS,"
+  ],
+  [
+    "ASTON",
+    "ASTON MARTIN"
+  ],
+  [
+    "BI250E",
+    "BI250ERA"
+  ],
+  [
+    "CENNTRO",
+    "CENNTRO E VAN L7"
+  ],
+  [
+    "CENNTRO",
+    "CENNTRO,"
+  ],
+  [
+    "CHANGCHAI",
+    "CHANGCHAI LK135D"
+  ],
+  [
+    "CHANGCHAI",
+    "CHANGCHAI LK270D"
+  ],
+  [
+    "CK MOTORS",
+    "TRUCK MOTORS TU250ZH"
+  ],
+  [
+    "CK MOTORS",
+    "TRUCK MOTORS TU300ZH"
+  ],
+  [
+    "CK MOTORS",
+    "TRUCK MOTORS TU300ZH-2"
+  ],
+  [
+    "CK MOTORS",
+    "TRUCK MOTORS TU350ZH"
+  ],
+  [
+    "CK MOTORS",
+    "TRUCK MOTORS TU350ZH-2"
+  ],
+  [
+    "CK MOTORS",
+    "TRUCK MOTORS TU350ZH-CAR"
+  ],
+  [
+    "CUATRIMOTO",
+    "CUATRIMOTO,"
+  ],
+  [
+    "CUATRIMOTO",
+    "CUATRIMOTO,MC:D`ITROID,"
+  ],
+  [
+    "CUATRIMOTO",
+    "CUATRIMOTO,MC:JCH,"
+  ],
+  [
+    "CUATRIMOTO",
+    "CUATRIMOTO,MC:MAQUIMOTORA,"
+  ],
+  [
+    "CUATRIMOTO",
+    "CUATRIMOTO,MC:YANGZU,"
+  ],
+  [
+    "CUATRIMOTO,",
+    "CUATRIMOTO,MC:D`ITROID,"
+  ],
+  [
+    "CUATRIMOTO,",
+    "CUATRIMOTO,MC:JCH,"
+  ],
+  [
+    "CUATRIMOTO,",
+    "CUATRIMOTO,MC:MAQUIMOTORA,"
+  ],
+  [
+    "CUATRIMOTO,",
+    "CUATRIMOTO,MC:YANGZU,"
+  ],
+  [
+    "DALONG YINGHAO YH1500DZH",
+    "DALONG YINGHAO YH1500DZH-A"
+  ],
+  [
+    "DOMO,",
+    "TRIMOTO CARGA,MC:DOMO,"
+  ],
+  [
+    "DRIVERS,",
+    "ECO DRIVERS,"
+  ],
+  [
+    "DRIVERS,",
+    "TRIMOTO CARGA,MC:DRIVERS,"
+  ],
+  [
+    "DRIVERS,",
+    "TRIMOTO CARGA,MC:ECO DRIVERS,"
+  ],
+  [
+    "D`ASIA MT,",
+    "TRIMOTO CARGA,MC:D`ASIA MT,"
+  ],
+  [
+    "D`ITROID,",
+    "CUATRIMOTO,MC:D`ITROID,"
+  ],
+  [
+    "D`ITROID,",
+    "TRIMOTO CARGA,MC:D`ITROID,"
+  ],
+  [
+    "E VAN L7",
+    "CENNTRO E VAN L7"
+  ],
+  [
+    "ECO DRIVERS,",
+    "TRIMOTO CARGA,MC:ECO DRIVERS,"
+  ],
+  [
+    "ESTTIN,",
+    "TRIMOTO CARGA,MC:ESTTIN,"
+  ],
+  [
+    "FAIZAN,",
+    "TRIMOTO CARGA,MC:FAIZAN,"
+  ],
+  [
+    "FIVE STAR,",
+    "TRIMOTO CARGA,MC:FIVE STAR,"
+  ],
+  [
+    "FORTRACTORS,",
+    "TRIMOTO CARGA,MC:FORTRACTORS,"
+  ],
+  [
+    "FURINKAZAN",
+    "FURINKAZAN,MOD:FUR-2.2M"
+  ],
+  [
+    "GDD-1.5",
+    "GUDAO ANDES GDD-1.5"
+  ],
+  [
+    "GDD-1.5",
+    "GUDAO ANDES GDD-1.5T"
+  ],
+  [
+    "GREEN RIDER FL-0002",
+    "GREEN RIDER FL-00029"
+  ],
+  [
+    "GUDAO ANDES",
+    "GUDAO ANDES GDC-2.5T"
+  ],
+  [
+    "GUDAO ANDES",
+    "GUDAO ANDES GDD-1.5"
+  ],
+  [
+    "GUDAO ANDES",
+    "GUDAO ANDES GDD-1.5T"
+  ],
+  [
+    "GUDAO ANDES",
+    "GUDAO ANDES GDD-2T"
+  ],
+  [
+    "GUDAO ANDES",
+    "GUDAO ANDES MACHINERY"
+  ],
+  [
+    "GUDAO ANDES",
+    "GUDAO ANDES,"
+  ],
+  [
+    "GUDAO ANDES GDD-1.5",
+    "GUDAO ANDES GDD-1.5T"
+  ],
+  [
+    "HATLIN,",
+    "TRIMOTO CARGA,MC:HATLIN,"
+  ],
+  [
+    "HONGJU,",
+    "TRIMOTO CARGA,MC:HONGJU,"
+  ],
+  [
+    "HONGSHENG",
+    "HONGSHENG HS100D"
+  ],
+  [
+    "HONGSHENG",
+    "HONGSHENG HS200D"
+  ],
+  [
+    "HONGSHENG",
+    "HONGSHENG WH150ZH-D"
+  ],
+  [
+    "HS-150",
+    "ROKA HS-150"
+  ],
+  [
+    "HS-150",
+    "ROKA HS-150D"
+  ],
+  [
+    "HS-180",
+    "ROKA HS-180"
+  ],
+  [
+    "HS-180",
+    "ROKA HS-180D"
+  ],
+  [
+    "HS200D",
+    "HONGSHENG HS200D"
+  ],
+  [
+    "HUASHA HS350ZH",
+    "HUASHA HS350ZH-C"
+  ],
+  [
+    "HUASHENG",
+    "HUASHENG,"
+  ],
+  [
+    "JAMER,",
+    "TRIMOTO CARGA,MC:JAMER,"
+  ],
+  [
+    "JINMA",
+    "JINMA JM1500DZH-2C"
+  ],
+  [
+    "KAMAX 500D",
+    "KAMAX 500D LITE"
+  ],
+  [
+    "KAMAX 500D",
+    "KAMAX 500D PRO"
+  ],
+  [
+    "KAMAX KA300F",
+    "KAMAX KA300FX"
+  ],
+  [
+    "KAMAX KA300F",
+    "KAMAX KA300FZ"
+  ],
+  [
+    "KATER`S,",
+    "TRIMOTO CARGA,MC:KATER`S,"
+  ],
+  [
+    "KEANE MOTORS",
+    "KEANE MOTORS,"
+  ],
+  [
+    "LIANKE",
+    "TRIMOTO DE CARGA,MC:LIANKE,"
+  ],
+  [
+    "LIANKE",
+    "ZHENGZHOU LIANKE MACHINERY"
+  ],
+  [
+    "LIONS,",
+    "TRIMOTO CARGA,MC:LIONS,"
+  ],
+  [
+    "LITONG",
+    "LITONG LC165II"
+  ],
+  [
+    "LK135",
+    "CHANGCHAI LK135D"
+  ],
+  [
+    "LK135",
+    "LK135D"
+  ],
+  [
+    "LK135D",
+    "CHANGCHAI LK135D"
+  ],
+  [
+    "LK270",
+    "CHANGCHAI LK270D"
+  ],
+  [
+    "LK270",
+    "LK270AC"
+  ],
+  [
+    "LK270",
+    "LK270D"
+  ],
+  [
+    "LK270",
+    "LK270E"
+  ],
+  [
+    "LK270D",
+    "CHANGCHAI LK270D"
+  ],
+  [
+    "MAQUIMOTORA,",
+    "CUATRIMOTO,MC:MAQUIMOTORA,"
+  ],
+  [
+    "MASSEY",
+    "MASSEY FERGUSON"
+  ],
+  [
+    "MAZIZZO,",
+    "TRIMOTO CARGA,MC:MAZIZZO,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:DOMO,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:DRIVERS,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:D`ASIA MT,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:D`ITROID,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:ECO DRIVERS,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:ESTTIN,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:FAIZAN,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:FIVE STAR,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:FORTRACTORS,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:HATLIN,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:HONGJU,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:JAMER,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:JCH,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:KATER`S,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:KTS,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:LIONS,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:LUKKEV,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:MAGT,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:MAZIZZO,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:NAMI,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:ROBBIRA,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:ROMAN,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:SIN MARCA,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:SUANA,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:TMAG,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:ULTRA,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:WANXIN,"
+  ],
+  [
+    "MOTO CARGA",
+    "TRIMOTO CARGA,MC:XRACING,"
+  ],
+  [
+    "MOTO FORM",
+    "MOTO FORM,"
+  ],
+  [
+    "MOTOCULTOR",
+    "MOTOCULTORES"
+  ],
+  [
+    "NAMI,",
+    "TRIMOTO CARGA,MC:NAMI,"
+  ],
+  [
+    "PERFOMIN",
+    "PERFOMIN 1T PREMIUM"
+  ],
+  [
+    "PERFOMIN",
+    "PERFOMIN 2.5T"
+  ],
+  [
+    "PERFOMIN",
+    "PERFOMIN 2T PREMIUM"
+  ],
+  [
+    "PERFOMIN",
+    "PERFOMIN DP-2.5"
+  ],
+  [
+    "PERFOMIN",
+    "PERFOMIN DP-2.5T"
+  ],
+  [
+    "PERFOMIN",
+    "PERFOMIN DP3.5"
+  ],
+  [
+    "PERFOMIN",
+    "PERFOMIN DPE-1.5"
+  ],
+  [
+    "PERFOMIN",
+    "PERFOMIN EK4"
+  ],
+  [
+    "PERFOMIN",
+    "PERFOMIN UK1"
+  ],
+  [
+    "PERFOMIN",
+    "PERFOMIN UK6"
+  ],
+  [
+    "PERFOMIN",
+    "PERFOMIN,"
+  ],
+  [
+    "PERFOMIN DP-2.5",
+    "PERFOMIN DP-2.5T"
+  ],
+  [
+    "ROBBIRA,",
+    "TRIMOTO CARGA,MC:ROBBIRA,"
+  ],
+  [
+    "ROKA HS-150",
+    "ROKA HS-150D"
+  ],
+  [
+    "ROKA HS-180",
+    "ROKA HS-180D"
+  ],
+  [
+    "ROMAN,",
+    "TRIMOTO CARGA,MC:ROMAN,"
+  ],
+  [
+    "SIN MARCA,",
+    "TRIMOTO CARGA,MC:SIN MARCA,"
+  ],
+  [
+    "SUANA,",
+    "TRIMOTO CARGA,MC:SUANA,"
+  ],
+  [
+    "TMAG,",
+    "TRIMOTO CARGA,MC:TMAG,"
+  ],
+  [
+    "TRACTOR AGRICOLA",
+    "TRACTOR AGRICOLA CABINADO"
+  ],
+  [
+    "TRACTOR AGRICOLA",
+    "TRACTOR AGRICOLA CON CABINA"
+  ],
+  [
+    "TRIMOTO",
+    "CUATRIMOTO"
+  ],
+  [
+    "TRIMOTO",
+    "CUATRIMOTO,"
+  ],
+  [
+    "TRIMOTO",
+    "CUATRIMOTO,MC:D`ITROID,"
+  ],
+  [
+    "TRIMOTO",
+    "CUATRIMOTO,MC:JCH,"
+  ],
+  [
+    "TRIMOTO",
+    "CUATRIMOTO,MC:MAQUIMOTORA,"
+  ],
+  [
+    "TRIMOTO",
+    "CUATRIMOTO,MC:YANGZU,"
+  ],
+  [
+    "TRIMOTO",
+    "LK200E TRIMOTO DE CARGA"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:DOMO,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:DRIVERS,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:D`ASIA MT,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:D`ITROID,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:ECO DRIVERS,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:ESTTIN,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:FAIZAN,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:FIVE STAR,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:FORTRACTORS,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:HATLIN,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:HONGJU,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:JAMER,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:JCH,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:KATER`S,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:KTS,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:LIONS,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:LUKKEV,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:MAGT,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:MAZIZZO,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:NAMI,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:ROBBIRA,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:ROMAN,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:SIN MARCA,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:SUANA,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:TMAG,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:ULTRA,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:WANXIN,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO CARGA,MC:XRACING,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO DE CARGA,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO DE CARGA,MC:LIANKE,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTO PASAJEROS,"
+  ],
+  [
+    "TRIMOTO",
+    "TRIMOTOR"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:DOMO,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:DRIVERS,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:D`ASIA MT,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:D`ITROID,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:ECO DRIVERS,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:ESTTIN,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:FAIZAN,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:FIVE STAR,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:FORTRACTORS,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:HATLIN,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:HONGJU,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:JAMER,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:JCH,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:KATER`S,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:KTS,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:LIONS,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:LUKKEV,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:MAGT,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:MAZIZZO,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:NAMI,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:ROBBIRA,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:ROMAN,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:SIN MARCA,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:SUANA,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:TMAG,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:ULTRA,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:WANXIN,"
+  ],
+  [
+    "TRIMOTO CARGA",
+    "TRIMOTO CARGA,MC:XRACING,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:DOMO,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:DRIVERS,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:D`ASIA MT,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:D`ITROID,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:ECO DRIVERS,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:ESTTIN,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:FAIZAN,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:FIVE STAR,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:FORTRACTORS,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:HATLIN,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:HONGJU,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:JAMER,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:JCH,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:KATER`S,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:KTS,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:LIONS,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:LUKKEV,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:MAGT,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:MAZIZZO,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:NAMI,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:ROBBIRA,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:ROMAN,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:SIN MARCA,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:SUANA,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:TMAG,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:ULTRA,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:WANXIN,"
+  ],
+  [
+    "TRIMOTO CARGA,",
+    "TRIMOTO CARGA,MC:XRACING,"
+  ],
+  [
+    "TRIMOTO DE CARGA,",
+    "TRIMOTO DE CARGA,MC:LIANKE,"
+  ],
+  [
+    "TRUCK MOTORS TU300ZH",
+    "TRUCK MOTORS TU300ZH-2"
+  ],
+  [
+    "TRUCK MOTORS TU350ZH",
+    "TRUCK MOTORS TU350ZH-2"
+  ],
+  [
+    "TRUCK MOTORS TU350ZH",
+    "TRUCK MOTORS TU350ZH-CAR"
+  ],
+  [
+    "ULTRA,",
+    "TRIMOTO CARGA,MC:ULTRA,"
+  ],
+  [
+    "WANXIN,",
+    "TRIMOTO CARGA,MC:WANXIN,"
+  ],
+  [
+    "XRACING,",
+    "TRIMOTO CARGA,MC:XRACING,"
+  ],
+  [
+    "YANGZU,",
+    "CUATRIMOTO,MC:YANGZU,"
+  ],
+  [
+    "ZONSEN",
+    "ZONSEN,"
+  ],
+  [
+    "ZY155",
+    "ZY155II"
+  ]
+]

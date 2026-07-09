@@ -68,7 +68,9 @@ def main() -> int:
 
     pb = _num(muestra["peso_bruto_desc"])
     muestra["Categoría (calculada)"] = muestra["carroceria_normalizada"].apply(normalizar_carroceria)
-    muestra["Categoría Withmory (calculada)"] = pb.apply(clasificar_segmento)
+    muestra["Categoría Withmory (calculada)"] = [
+        clasificar_segmento(p, c) for p, c in zip(pb, muestra["Categoría (calculada)"])
+    ]
 
     for col in ["Marca OK? (S/N)", "Modelo OK? (S/N)", "Categoría OK? (S/N)",
                 "Categoría Withmory OK? (S/N)", "Observaciones"]:

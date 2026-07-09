@@ -73,12 +73,18 @@ def normalizar_carroceria(val) -> str:
     return "OTROS"
 
 
-def clasificar_segmento(pb) -> str:
+def clasificar_segmento(pb, carroceria: str | None = None) -> str:
     # NOTA: pages/2_Camiones.py tenia el mismo bug hasta el 2026-07-08 (PR #10) --
     # si pb llegaba como float('nan') (no None, no string vacio), `float(nan)` NO
     # lanzaba excepcion y NaN <= 0 era False en Python, asi que caia sin querer
     # hasta el ultimo `return "PESADO"`. Ya corregido ahi tambien; este check
     # explicito de NaN se mantiene aca por las dudas (defensivo, no por el bug).
+    #
+    # Si carroceria ya es TRACTOCAMIÓN, se fuerza PESADO sin importar el peso
+    # declarado -- decision de negocio 2026-07-09, ver misma nota en
+    # pages/2_Camiones.py::clasificar_segmento().
+    if carroceria == "TRACTOCAMIÓN":
+        return "PESADO"
     if pd.isna(pb):
         return "SIN DATO"
     try:
@@ -241,7 +247,7 @@ def seccion_3_no_clasificado(final: pd.DataFrame) -> str:
 
     out.append("\n### Categoría Withmory (segmento de peso)\n")
     pb = _num(final.get("peso_bruto_desc", pd.Series(dtype=object)))
-    seg = pb.apply(clasificar_segmento)
+    seg = pd.Series([clasificar_segmento(p, c) for p, c in zip(pb, cat)], index=pb.index)
     tabla_seg = seg.value_counts().reset_index()
     tabla_seg.columns = ["Categoría Withmory", "Unidades"]
     out.append(tabla_seg.to_string(index=False))
