@@ -32,6 +32,15 @@ GOLD_DIR = ROOT / "data" / "gold"
 sys.path.insert(0, str(ROOT))
 from pipeline.silver import PARTIDAS_CAMION  # noqa: E402,F401 (no se usa hoy, referencia futura)
 
+# Grupos que la heuristica de similitud de texto de seccion 6 detecta como
+# "probablemente la misma marca", pero que son en realidad marcas distintas
+# confirmadas -- mismo patron que EXCEPCIONES en scripts/validar_cobertura.py.
+# No agregar aca sin confirmar la decision con el usuario primero.
+EXCEPCIONES_FRAGMENTACION = {
+    "KAMA": "KAMAZ es un fabricante ruso distinto -- decision de negocio confirmada "
+            "2026-07-08, no se consolidan aunque el nombre se parezca.",
+}
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Taxonomias del dashboard (duplicadas de pages/2_Camiones.py a proposito)
@@ -65,12 +74,11 @@ def normalizar_carroceria(val) -> str:
 
 
 def clasificar_segmento(pb) -> str:
-    # NOTA: la funcion original en pages/2_Camiones.py tiene un bug real -- si pb
-    # llega como float('nan') (no None, no string vacio), `float(nan)` NO lanza
-    # excepcion y NaN <= 0 es False en Python, asi que cae sin querer hasta el
-    # ultimo `return "PESADO"`. Confirmado 2026-07-08. Se corrige aca con un check
-    # explicito de NaN para que este informe reporte el numero real; el dashboard
-    # sigue con el bug sin corregir -- ver seccion 1.
+    # NOTA: pages/2_Camiones.py tenia el mismo bug hasta el 2026-07-08 (PR #10) --
+    # si pb llegaba como float('nan') (no None, no string vacio), `float(nan)` NO
+    # lanzaba excepcion y NaN <= 0 era False en Python, asi que caia sin querer
+    # hasta el ultimo `return "PESADO"`. Ya corregido ahi tambien; este check
+    # explicito de NaN se mantiene aca por las dudas (defensivo, no por el bug).
     if pd.isna(pb):
         return "SIN DATO"
     try:
@@ -165,23 +173,22 @@ def seccion_1_totales_control(excl: pd.DataFrame, validos: pd.DataFrame, final: 
         kg_no_nulo = final["kg_bruto_col"].notna() & (_num(final["kg_bruto_col"]).notna())
         afectadas = (pb_nulo & kg_no_nulo).sum()
         pct = round(afectadas / len(final) * 100, 2) if len(final) else 0
-        out.append(f"**[ALERTA] {afectadas:,} filas ({pct}%)** tienen `peso_bruto_desc` vacío pero "
-                    "`kg_bruto_col` presente. El dashboard (`pages/2_Camiones.py::MAPEO_COLS`) usa "
-                    "`kg_bruto_col` como fallback para calcular `segmento_peso` ('Categoría Withmory') "
-                    "— pero `kg_bruto_col` es en realidad **peso neto**, no bruto (confirmado "
-                    "2026-07-08, ver `informe_calidad_datos.md`). Estas filas probablemente están "
-                    "en un segmento de peso más bajo del que les corresponde. No corregido en el "
-                    "dashboard todavía — el pipeline (`categoria_atu`) ya no usa este fallback desde hoy.\n")
+        out.append(f"**[ALERTA] {afectadas:,} filas ({pct}%)** tienen `peso_bruto_desc` vacío. "
+                    "`kg_bruto_col` es en realidad **peso neto**, no bruto (confirmado 2026-07-08, "
+                    "ver `informe_calidad_datos.md`), así que no hay forma determinística de recuperar "
+                    "el peso bruto para estas filas. **Corregido 2026-07-08 (PR #10)**: tanto el "
+                    "pipeline (`categoria_atu`) como el dashboard (`pages/2_Camiones.py::MAPEO_COLS`) ya "
+                    "no usan `kg_bruto_col` como fallback — estas filas quedan como \"SIN DATO\" en vez "
+                    "de un segmento de peso incorrecto.\n")
 
     n_sin_pb = final.get("peso_bruto_desc", pd.Series(dtype=object)).isna().sum()
-    out.append(f"**[ALERTA] Bug confirmado en `pages/2_Camiones.py::clasificar_segmento()`:** cuando "
-                f"`pb` llega como `NaN` (no `None`, no string vacío — un float `NaN` real, que es "
-                f"exactamente cómo llegan los {n_sin_pb:,} valores faltantes desde el parquet), "
-                "`float(pb)` NO lanza excepción y `NaN <= 0` da `False` en Python, así que la fila "
-                "cae sin querer en el último `return \"PESADO\"` de la función — **el segmento más "
-                "pesado**, no \"SIN DATO\". Confirmado y reproducido el 2026-07-08. Este informe usa "
-                "una copia corregida de la función (ver comentario en el código fuente); el dashboard "
-                "en producción sigue con el bug.\n")
+    out.append(f"**Bug histórico en `pages/2_Camiones.py::clasificar_segmento()`** (ya corregido, "
+                f"2026-07-08, PR #10): cuando `pb` llegaba como `NaN` (no `None`, no string vacío — un "
+                f"float `NaN` real, que es exactamente cómo llegan los {n_sin_pb:,} valores faltantes "
+                "desde el parquet), `float(pb)` no lanzaba excepción y `NaN <= 0` daba `False` en "
+                "Python, así que la fila caía sin querer en el último `return \"PESADO\"` de la función "
+                "— el segmento más pesado, no \"SIN DATO\". La función del dashboard ahora tiene el "
+                "mismo chequeo explícito de `pd.isna(pb)` que ya usaba la copia local de este informe.\n")
 
     return "\n".join(out)
 
@@ -342,20 +349,32 @@ def seccion_6_fragmentacion_marcas(final: pd.DataFrame) -> str:
         if similares:
             grupo = [marca] + similares
             vistos.update(grupo)
-            grupos.append(grupo)
+            grupos.append((raiz, grupo))
 
     if not grupos:
         out.append("Sin fragmentación detectada por similitud de texto entre marcas normalizadas.\n")
         return "\n".join(out)
 
-    for grupo in grupos:
+    hay_reales = False
+    for raiz, grupo in grupos:
         total = sum(conteo[m] for m in grupo)
         out.append(f"**{' / '.join(grupo)}** — total combinado: {total:,} unidades")
         for m in grupo:
             out.append(f"  - {m}: {conteo[m]:,}")
+        excepcion = EXCEPCIONES_FRAGMENTACION.get(raiz)
+        if excepcion:
+            out.append(f"  - **[EXCEPCIÓN CONFIRMADA]** No consolidar -- {excepcion}")
+        else:
+            hay_reales = True
         out.append("")
-    out.append("*Estas variantes probablemente son la misma marca comercial escrita distinto — "
-                "consolidarlas evita subestimar su participación de mercado en los rankings.*\n")
+
+    if hay_reales:
+        out.append("*Los grupos sin marca de excepción arriba probablemente son la misma marca "
+                    "comercial escrita distinto — consolidarlas evita subestimar su participación "
+                    "de mercado en los rankings.*\n")
+    else:
+        out.append("*Todos los grupos detectados por similitud de texto están marcados como "
+                    "excepción confirmada -- no se recomienda consolidar ninguno.*\n")
     return "\n".join(out)
 
 
