@@ -17,10 +17,13 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from scripts.validar_continuidad_importador import detectar_ceros_sospechosos  # noqa: E402
 
 # ── Umbrales ──────────────────────────────────────────────────────────────────
 UMBRAL_OK    = 95   # >= OK, sin acción
@@ -30,7 +33,11 @@ UMBRAL_GAP   = 88   # < 88 → acción requerida
 # Excepciones permanentes: marcas cuya cobertura baja es esperada y documentada
 EXCEPCIONES = {
     "HOWO MAX":    "WITHMORY declara como SINOTRUK en aduana — no es gap real",
-    "SINOTRUK":    "Rezago metodológico AAP(MTC) vs VT(DUA) — ~91% es el techo real",
+    "SINOTRUK":    "Rezago metodológico AAP(MTC) vs VT(DUA) — ~91% es el techo real. "
+                   "OJO: esta excepción tapa el diagnóstico agregado de esta marca por completo "
+                   "-- un gap real de un importador puntual (ej. caso Zapler S.A.C., 2026-07-08) "
+                   "no se ve acá. Correr scripts/validar_continuidad_importador.py --marca SINOTRUK "
+                   "aparte para chequear continuidad por importador dentro de esta marca.",
     "RAM":         "Vehículos de rescate/bomberos (8705300000) — baja relevancia comercial",
     "FORD":        "1 unidad histórica — insignificante",
 }
@@ -44,15 +51,10 @@ MESES = {1:"Ene",2:"Feb",3:"Mar",4:"Abr",5:"May",
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-
-def detectar_ceros_sospechosos(series_mensual: pd.Series) -> bool:
-    """Devuelve True si hay meses con 0 flanqueados por meses con datos."""
-    vals = list(series_mensual.values)
-    for i in range(1, len(vals) - 1):
-        if vals[i] == 0 and vals[i-1] > 0 and vals[i+1] > 0:
-            return True
-    return False
-
+# detectar_ceros_sospechosos() vive en scripts/validar_continuidad_importador.py
+# (extraída de acá 2026-07-09) — ese script la aplica SIEMPRE a todos los
+# importadores, sin depender de que la marca agregada haya caido bajo el
+# umbral como pasa acá abajo (ver nota en EXCEPCIONES['SINOTRUK']).
 
 def importadores_conocidos(vt_per: pd.DataFrame, marca: str, top_n: int = 8) -> pd.DataFrame:
     """Devuelve los importadores conocidos para una marca, con conteo mensual."""

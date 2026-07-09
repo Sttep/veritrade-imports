@@ -11,11 +11,18 @@ categoría de abajo en vez de asumir que "ya está todo bien" porque una corrida
 
 ## 1. Correr los validadores existentes
 
-Estos dos scripts son la fuente de verdad de checks ya codificados — siempre correrlos primero:
+Estos scripts son la fuente de verdad de checks ya codificados — siempre correrlos todos, en
+este orden (los primeros dos son calidad interna, los siguientes dos comparan contra fuente
+externa/histórico — antes solo se corrían los dos primeros y por eso el bug de "TRACTOR" y el
+gap de Zapler no se detectaron a tiempo, ver `liz-uz5`/`liz-tcu`):
 
 ```bash
 PYTHONIOENCODING=utf-8 uv run python scripts/validar_calidad_datos.py
 PYTHONIOENCODING=utf-8 uv run python scripts/validar_diccionarios.py
+PYTHONIOENCODING=utf-8 uv run python scripts/validar_cobertura.py
+PYTHONIOENCODING=utf-8 uv run python scripts/detectar_conflictos_exclusion.py
+PYTHONIOENCODING=utf-8 uv run python scripts/validar_continuidad_importador.py
+PYTHONIOENCODING=utf-8 uv run python scripts/auditar_embudo_importador.py
 ```
 
 (El `PYTHONIOENCODING=utf-8` no es opcional en Windows — sin eso, los prints con emoji/tildes
@@ -25,7 +32,9 @@ truenan con `UnicodeEncodeError` a mitad de corrida. Bead conocido: `liz-d33`.)
   historial). Checks a nivel de fila sobre `camiones.parquet`/`maquinaria.parquet`: duplicados
   DUA+VIN, formato de VIN, coherencia peso neto/bruto, rangos numéricos, descripción sin parsear,
   marca fuera de vocabulario, mojibake, CIF<FOB, carrocería fuera de catálogo, formato de
-  `anio_modelo`.
+  `anio_modelo`, nulos en `version` (distinguiendo de `SIN VERSION` declarado), concentración de
+  peso bruto exactamente en una frontera de categoría Withmory (patrón "redondo de fábrica", el
+  mismo que causó el bug de 33,000kg en tractocamiones — ver `liz-m7u`).
 - `scripts/validar_diccionarios.py` → `informe_diccionarios.md` (overwrite). Checks de
   consistencia entre `configuracion.xlsx` (hoja `marcas`) y `data/vocab_extra.json`: marcas que
   normalizan distinto según pasen por reglas (silver, determinístico) o LLM (gold), bug de
@@ -33,6 +42,24 @@ truenan con `UnicodeEncodeError` a mitad de corrida. Bead conocido: `liz-d33`.)
   en `vocab_extra.json`, con lo cual el alias nunca se aplica — `Vocab.marca_canonica()` en
   `pipeline/llm/vocab.py` revisa `_marca_idx` antes que `_alias_idx`), marcas en el parquet
   ausentes de ambos catálogos, duplicados internos en cada catálogo.
+- `scripts/validar_cobertura.py` — el único que compara contra fuente externa (AAP): cobertura
+  Veritrade vs AAP por marca, diagnóstico automático de brechas (partida no descargada vs
+  importador incompleto). Las marcas en `EXCEPCIONES` (dentro del script) quedan fuera del
+  diagnóstico agregado a propósito — ver nota de `SINOTRUK` en sección 3 de abajo.
+- `scripts/detectar_conflictos_exclusion.py` — detecta colisiones en la hoja `excluir` de
+  `configuracion.xlsx` donde un término genérico es substring de uno más específico (mismo
+  patrón que el guardrail `validar_excluir_set()` de `pipeline/silver.py`, pero corriendo sobre
+  el archivo tal cual está hoy, no solo sobre términos nuevos en el próximo `silver.py`).
+- `scripts/validar_continuidad_importador.py` — "ceros sospechosos" (mes en 0 flanqueado por
+  meses con datos) por importador, para todas las marcas relevantes de VT, **sin** depender de
+  que la marca agregada ya haya caído bajo el umbral de `validar_cobertura.py` — así se detectan
+  gaps de importador puntual escondidos dentro de una marca con `EXCEPCIONES` (caso Zapler
+  dentro de SINOTRUK, 2026-07-08).
+- `scripts/auditar_embudo_importador.py` — tabla por importador del camino completo bronze →
+  silver (excluidas/razón) → gold → build_parquet (excluidas/razón) → final. Corré sin flags
+  para el escaneo completo (ordenado por % descartado, los más sospechosos primero); usá
+  `--importador "NOMBRE"` para el detalle de uno puntual cuando algún check de arriba señale un
+  importador específico.
 
 Si vas a agregar un check nuevo porque encontraste algo que ninguno de los dos cubre, agregalo
 siguiendo el patrón existente en el script que corresponda (`check_*(df, nombre, cfg,
@@ -70,6 +97,13 @@ Cosas que un check de "columna individual" no atrapa porque cruzan datos o requi
   compuestas) y **familia `IVECO`** (+ASTRA) SÍ están consolidadas — si encontrás alguna variante
   de estas familias todavía suelta en `marca_norm`, ESO SÍ es un hallazgo real (sería una
   regresión), reportalo con prioridad alta.
+- **`SINOTRUK` en `EXCEPCIONES` de `validar_cobertura.py` tapa el diagnóstico agregado de esa
+  marca por completo** (cobertura ~91% es su techo real, rezago metodológico esperado AAP vs
+  VT) — pero eso no descarta un gap real de un importador puntual *dentro* de SINOTRUK (pasó con
+  Zapler S.A.C., 2026-07-08, detectado a mano antes de que existiera
+  `validar_continuidad_importador.py`). Si estás auditando SINOTRUK específicamente, corré
+  `scripts/validar_continuidad_importador.py --marca SINOTRUK` además de lo de la sección 1 — no
+  te quedes solo con que la marca está "en excepciones, no es un hallazgo".
 
 ## 4. Cómo reportar
 

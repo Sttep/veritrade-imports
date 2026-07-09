@@ -40,7 +40,7 @@ CAMIONES_COLS = {
     "peso_bruto": "peso_bruto_desc", "peso_neto": "peso_neto_desc", "kg_bruto_col": "kg_bruto_col",
     "anio_modelo": "anio_modelo", "cilindrada": "cilindrada_cc", "num_cilindros": "num_cilindros",
     "ejes": "ejes", "largo": "largo_mm", "ancho": "ancho_mm", "alto": "alto_mm",
-    "fob": "fob_usd", "cif": "cif_usd", "descripcion": "_descripcion",
+    "fob": "fob_usd", "cif": "cif_usd", "descripcion": "_descripcion", "version": "version",
     "campos_core": ["marca_declarada", "modelo", "carroceria"],
     "carroceria_normalizada": "carroceria_normalizada",
 }
@@ -61,6 +61,11 @@ MOJIBAKE_COLUMNAS = [
     "importador", "marca_declarada", "modelo", "version", "_descripcion",
     "color", "exportador", "carroceria", "transmision", "marca",
 ]
+
+# Cortes de pages/2_Camiones.py::clasificar_segmento() (Withmory: LDT1/LDT2/MDT1/MDT2/
+# MDT3/SEMI PESADO/PESADO). Concentración alta de peso EXACTO en uno de estos valores es
+# el patrón "redondo de fábrica" que causó el bug de 33,000kg en tractocamiones (2026-07-09).
+FRONTERAS_PESO_KG = [6000, 10000, 15000, 17000, 25000, 33000]
 
 NOTAS_CODIGO = """## Notas de código (fuera de alcance de este script)
 
@@ -386,6 +391,58 @@ def check_formato_anio_modelo(df, nombre, cfg, max_ejemplos):
     return _resultado(titulo, int(con_dato.sum()), len(df), hallazgos, cfg, max_ejemplos, nota=nota)
 
 
+def check_nulos_campo(df, nombre, cfg, cfg_key, titulo, max_ejemplos, valores_placeholder=None):
+    """Tasa de nulos reales (tag ausente en la descripción, ej. VE: no presente) en un
+    campo declarativo. Distingue explícitamente de valores placeholder (ej. 'SIN VERSION',
+    que SÍ es un valor declarado por el importador, no un vacío) -- valores_placeholder se
+    reporta aparte en la nota y no cuenta como hallazgo."""
+    col = cfg.get(cfg_key)
+    if not col or col not in df.columns:
+        return _no_aplica(titulo)
+
+    nulos_reales = df[col].isna()
+    hallazgos = df[nulos_reales]
+
+    nota = None
+    if valores_placeholder:
+        placeholder_set = {v.upper() for v in valores_placeholder}
+        serie_up = df[col].astype(str).str.upper().str.strip().where(df[col].notna(), "")
+        es_placeholder = serie_up.isin(placeholder_set)
+        n_ph = int(es_placeholder.sum())
+        pct_ph = (n_ph / len(df) * 100) if len(df) else 0.0
+        nota = (f"Valor declarado como {'/'.join(valores_placeholder)} (dato real, NO es nulo, "
+                f"no cuenta como hallazgo): {n_ph:,} ({pct_ph:.2f}%)")
+
+    return _resultado(titulo, len(df), len(df), hallazgos, cfg, max_ejemplos, nota=nota)
+
+
+def check_peso_en_frontera_categoria(df, nombre, cfg, max_ejemplos):
+    titulo = "Concentración de peso bruto exactamente en una frontera de categoría (patrón 'redondo de fábrica')"
+    pb_col = cfg.get("peso_bruto")
+    if not pb_col or pb_col not in df.columns:
+        return _no_aplica(titulo)
+    pb = to_num(df, pb_col)
+    con_dato = pb.notna()
+    n_eval = int(con_dato.sum())
+    mask = con_dato & pb.isin(FRONTERAS_PESO_KG)
+    hallazgos = df[mask]
+
+    alertas = []
+    if n_eval:
+        for frontera in FRONTERAS_PESO_KG:
+            n_frontera = int((pb == frontera).sum())
+            pct = n_frontera / n_eval * 100
+            if pct >= 1.0:
+                alertas.append(f"{frontera:,}kg: {n_frontera:,} filas ({pct:.2f}%)")
+    nota = ("[ALERTA] concentración >=1% en frontera(s) exacta(s): " + "; ".join(alertas)
+            if alertas else
+            "Sin concentración >=1% en ninguna frontera (alerta informativa, no es error binario "
+            "-- una fila aislada en un valor de frontera no es en sí un problema).")
+
+    return _resultado(titulo, n_eval, len(df), hallazgos, cfg, max_ejemplos,
+                       extra_series=pb, extra_label=pb_col, nota=nota)
+
+
 CHECKS = [
     lambda df, nombre, cfg, me, anio_actual: check_duplicados_exactos(df, nombre, cfg, me),
     lambda df, nombre, cfg, me, anio_actual: check_vin_duplicado_entre_dua(df, nombre, cfg, me),
@@ -406,6 +463,9 @@ CHECKS = [
     lambda df, nombre, cfg, me, anio_actual: check_fob_cif(df, nombre, cfg, me),
     lambda df, nombre, cfg, me, anio_actual: check_carroceria_fuera_catalogo(df, nombre, cfg, me),
     lambda df, nombre, cfg, me, anio_actual: check_formato_anio_modelo(df, nombre, cfg, me),
+    lambda df, nombre, cfg, me, anio_actual: check_nulos_campo(
+        df, nombre, cfg, "version", "Nulos en 'version'", me, valores_placeholder=["SIN VERSION"]),
+    lambda df, nombre, cfg, me, anio_actual: check_peso_en_frontera_categoria(df, nombre, cfg, me),
 ]
 
 
