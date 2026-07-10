@@ -1,147 +1,315 @@
-Yo dividiría el proyecto en dos etapas.
-📦 Entrega 1 (la que vas a presentar)
+aquí hay algo interesante: tu dashboard y tu PPT no deberían competir; deberían complementarse.
 
-Respeta casi al 100% la estructura que gerencia ya conoce.
+¿Qué diferencia veo con el PPT?
 
-Es decir:
+Para mí la diferencia fundamental es esta:
 
-Mercado a Marzo
-Mercado por Segmento
-Análisis por Marca y Segmento
-Camiones
-Tractos
-Volquetes
-Volquetes por Origen
-Combustible
-Distribuidores
-Productos relevantes
+📊 El PPT responde preguntas.
 
-Porque eso ya responde las preguntas que ellos hacen.
+Una presentación gerencial dice:
 
-Lo único que mejoraría es:
+"En marzo el mercado creció 18%, Volvo aumentó participación y Sinotruk perdió presencia en tractos."
 
-mejor navegación
-filtros globales
-KPIs más claros
-gráficos más limpios
-explicaciones
-rendimiento
-automatización
+Es una conclusión.
 
-Pero no cambiaría la lógica del reporte.
+No necesita que el gerente investigue.
 
-📦 Entrega 2 (cuando el proyecto madure)
+Ya está interpretado.
 
-Ahí sí empezaría a transformar todo.
+📈 El dashboard permite investigar.
 
-Por ejemplo:
+El dashboard dice:
 
-Gerencia
-│
-├── Resumen Ejecutivo
-├── Mercado
-├── Competidores
-├── Tendencias
-└── Riesgos
+"Aquí están los datos. Si quieres saber por qué Volvo creció, abre Competencia. Si quieres saber si fue por tractos o volquetes, abre Producto."
 
-Y las demás pestañas serían mucho más analíticas.
+Es una herramienta de exploración.
 
-Incluso haría un pequeño cambio de nombres
+Por eso nunca debería intentar ser un PPT de 40 diapositivas puesto en Streamlit.
 
-En vez de
+Donde veo que todavía se parecen demasiado
 
-Mercado a Marzo
+Aquí creo que Claudio puede mejorar bastante.
 
-podría ser
-
-📊 Resumen Ejecutivo
-
-Pero internamente contiene exactamente la misma información.
-
-En vez de
-
-Mercado por Segmento
-
-podría ser
-
-📈 Segmentos
-
-En vez de
-
-Análisis Marca Segmento
-🏆 Competidores
-
-Eso hace que el dashboard se vea más moderno sin cambiar el contenido.
-
-Lo que SÍ agregaría (sin romper nada)
-
-Aquí creo que está la oportunidad.
-
-En cada pestaña pondría arriba cuatro tarjetas.
-
-Por ejemplo en Camiones.
+Hoy el dashboard sigue teniendo estructura de informe.
 
 Mercado
 
-14 532
+↓
 
-↑ 12%
-Share Sinotruk
+Competencia
 
-17.8%
-Modelo líder
+↓
 
-HOWO TX
-Competidor líder
+Producto
 
-Shacman
-
-Y debajo recién la tabla.
-
-Eso le da un aspecto ejecutivo sin cambiar el reporte.
-
-Auditoría del Sistema
-
-Esta ni siquiera la mostraría.
-
-La pondría al final.
-
-Mercado
-
-Segmentos
-
-Marca
-
-Camiones
-
-Tractos
-
-Volquetes
+↓
 
 Origen
 
+↓
+
 Combustible
 
-Distribuidores
+Eso está bien...
 
-Productos relevantes
+pero todavía se siente bastante lineal.
 
---------------------------------
+¿Qué hace diferente a un dashboard?
 
-Auditoría del Sistema
+Que tiene niveles de profundidad.
 
-Incluso podría estar oculta si el usuario no es tú.
+Ejemplo.
 
-Lo que NO haría
+En el PPT tienes:
 
-No intentaría meter las diez pestañas en una sola.
+Top 5 marcas
 
-Porque tu gerente ya aprendió a navegar ese reporte.
+Fin.
 
-Cambiarle completamente la forma de trabajar tiene un costo.
+Pero en el dashboard podrías tener
 
-Yo le diría a Claude algo como:
+Top 10
 
-Objetivo: Modernizar el reporte existente, no rediseñarlo desde cero.
+↓
 
-Mantén la estructura funcional de las diez pestañas porque ya fue validada por gerencia. El trabajo consiste en mejorar la experiencia de uso, la claridad visual, la automatización y el rendimiento, preservando las métricas, tablas y lógica de negocio existentes. Cualquier mejora debe ser evolutiva y no disruptiva, de modo que un usuario acostumbrado al reporte anterior pueda utilizar la nueva versión sin necesidad de capacitación.
+Ver Top 20
+
+↓
+
+Ver todas
+
+↓
+
+Exportar
+
+Ahí aprovechas la interactividad.
+
+Lo del Top 5
+
+Aquí coincido completamente contigo.
+
+Top 5 es muy poco.
+
+Yo haría algo así.
+
+Top 10
+
+porque normalmente ya aparecen:
+
+Volvo
+Fuso
+Isuzu
+Hino
+Sinotruk
+Scania
+Mercedes
+Shacman
+Dongfeng
+FAW
+
+Eso ya cuenta mucho mejor el mercado.
+
+Y aún mejor...
+
+un selector.
+
+Top:
+
+○5
+
+●10
+
+○15
+
+○20
+
+Así el usuario decide.
+
+Lo que yo agregaría
+
+Aquí es donde creo que tu dashboard puede superar al PPT.
+
+1. Insights automáticos
+
+No solo un resumen.
+
+Algo así.
+
+📌 Hallazgos del periodo
+
+• Volvo ganó 2.3 pp.
+
+• Hino cayó 1.1 pp.
+
+• Sinotruk aumentó 18 unidades.
+
+• Los tractos crecieron 32%.
+
+• China ya representa 61%.
+
+Eso un PPT lo hace manualmente.
+
+El dashboard puede hacerlo automáticamente.
+
+2. Alertas
+
+Por ejemplo
+
+🟢 Mercado creciendo
+
+🟡 Competencia estable
+
+🔴 Sinotruk pierde participación
+
+Eso hace que el gerente entienda el estado en cinco segundos.
+
+3. Comparador
+
+Esto no existe en el PPT.
+
+Comparar
+
+Volvo
+
+vs
+
+Sinotruk
+
+Y todo el dashboard cambia.
+
+Eso sí es aprovechar la interactividad.
+
+4. Drill-down
+
+En el PPT dices
+
+Segmento
+
+En el dashboard haces
+
+Segmento
+
+↓
+
+Camiones
+
+↓
+
+Tractos
+
+↓
+
+Modelos
+
+Eso es imposible en PowerPoint.
+
+5. Línea de tiempo
+
+Algo que casi nunca veo.
+
+2022
+
+2023
+
+2024
+
+2025
+
+2026
+
+Y que todo cambie.
+
+Eso le da muchísimo valor.
+
+¿Qué mejoraría visualmente?
+
+Hay una cosa que Claudio todavía puede hacer.
+
+Yo haría que el dashboard respirara más.
+
+Por ejemplo
+
+KPIs
+
+↓
+
+Resumen
+
+↓
+
+Mercado
+(gráfico gigante)
+
+↓
+
+Tres tarjetas
+
+↓
+
+Competencia
+
+↓
+
+Producto
+
+En lugar de
+
+gráfico
+
+gráfico
+
+gráfico
+
+gráfico
+
+gráfico
+
+Un gráfico principal por sección crea un punto focal. Los gráficos secundarios sirven para responder preguntas específicas.
+
+Lo que sí copiaría del PPT
+
+Hay algo que tu PPT hace muy bien.
+
+Cuenta una historia.
+
+Eso no lo perdería.
+
+Por ejemplo.
+
+Resumen Ejecutivo
+
+↓
+
+Situación del Mercado
+
+↓
+
+Competencia
+
+↓
+
+Participación Sinotruk
+
+↓
+
+Conclusiones
+
+Ese orden ya funciona.
+
+Simplemente el dashboard debería añadir la capacidad de profundizar cuando el usuario quiera.
+
+Mi mejora "premium"
+
+Si quisiera que este dashboard realmente se sintiera de nivel ejecutivo, añadiría una columna lateral de "Hallazgos clave" que se actualice según los filtros seleccionados.
+
+Algo como:
+
+Hallazgos del período
+
+📈 El mercado creció 12,4% respecto al período anterior.
+🏆 Volvo mantiene el liderazgo con 18,7% de participación.
+🚛 Los tractocamiones impulsaron el crecimiento del mercado.
+🟡 Sinotruk incrementó sus importaciones un 9%, pero perdió 0,6 puntos de participación.
+🌏 China continúa siendo el principal origen de las unidades importadas.
+
+Ese panel es la mayor diferencia entre un dashboard que muestra datos y uno que explica el negocio. Tu PPT ya hace ese trabajo de interpretación; si logras que el dashboard lo genere dinámicamente, tendrás una herramienta que no solo reemplaza parte del informe mensual, sino que aporta un valor que un PowerPoint no puede ofrece2

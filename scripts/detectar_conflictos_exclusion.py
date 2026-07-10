@@ -58,22 +58,14 @@ def cargar_excluidos_por_razon_carroceria_marca_texto() -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--min-filas", type=int, default=10,
-                     help="Ignorar terminos con menos de N filas excluidas (default 10)")
-    args = ap.parse_args()
-
-    print("Cargando exclusiones de silver...")
-    excl = cargar_excluidos_por_razon_carroceria_marca_texto()
-    if excl.empty:
-        print("No se encontraron exclusiones por carroceria/marca/texto en los _qa.xlsx.")
-        return 1
-
+def construir_tabla_conflictos(excl: pd.DataFrame, min_filas: int = 10) -> pd.DataFrame:
+    """Agrupa las exclusiones por (tipo, termino) y devuelve solo las que caen en
+    partidas documentadas como camión legítimo -- extraída de main() (2026-07-10)
+    para reusarse desde el dashboard (shared/riesgos.py)."""
     filas = []
     for (tipo, termino), grupo in excl.groupby(["tipo", "termino"]):
         n = len(grupo)
-        if n < args.min_filas:
+        if n < min_filas:
             continue
         partidas = grupo["partida"].astype(str).value_counts()
         partidas_legitimas = {p: c for p, c in partidas.items() if p in PARTIDAS_CAMION}
@@ -89,12 +81,31 @@ def main() -> int:
             "pct_en_partida_legitima": pct_legitimas,
             "partidas_legitimas_afectadas": ", ".join(f"{p}({c})" for p, c in sorted(partidas_legitimas.items(), key=lambda x: -x[1])),
         })
-
     if not filas:
+        return pd.DataFrame(columns=["tipo", "termino", "filas_excluidas_total",
+                                      "filas_en_partida_camion_legitima",
+                                      "pct_en_partida_legitima", "partidas_legitimas_afectadas"])
+    return pd.DataFrame(filas).sort_values("filas_en_partida_camion_legitima", ascending=False)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--min-filas", type=int, default=10,
+                     help="Ignorar terminos con menos de N filas excluidas (default 10)")
+    args = ap.parse_args()
+
+    print("Cargando exclusiones de silver...")
+    excl = cargar_excluidos_por_razon_carroceria_marca_texto()
+    if excl.empty:
+        print("No se encontraron exclusiones por carroceria/marca/texto en los _qa.xlsx.")
+        return 1
+
+    tabla = construir_tabla_conflictos(excl, min_filas=args.min_filas)
+
+    if tabla.empty:
         print("Sin conflictos detectados (ningun termino de exclusion cae en partidas de camion documentadas).")
         return 0
 
-    tabla = pd.DataFrame(filas).sort_values("filas_en_partida_camion_legitima", ascending=False)
     pd.set_option("display.max_colwidth", None)
     pd.set_option("display.width", 220)
     print(f"\n{len(tabla)} termino(s) de exclusion con conflicto potencial "

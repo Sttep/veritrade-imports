@@ -174,6 +174,68 @@ def analizar_patron_mes_actual(vt: pd.DataFrame, meses_ventana: int = 6, umbral_
     return sorted(resultados, key=lambda r: -r["regularidad"])
 
 
+def construir_hallazgos_continuidad(
+    vt: pd.DataFrame, anio: int, mes_max: int,
+    min_unidades_marca: int = MIN_UNIDADES_MARCA,
+    min_filas_importador: int = MIN_FILAS_IMPORTADOR,
+    marca_filtro: str | None = None,
+) -> tuple[list[dict], list[str]]:
+    """Construye los hallazgos de ceros sospechosos por importador para Ene-mes_max
+    de anio. Extraída de main() (2026-07-10) para poder reusarse desde el dashboard
+    (shared/riesgos.py) sin duplicar la lógica de categorización.
+
+    Devuelve (hallazgos, marcas_analizadas) -- mismo criterio y categorías que
+    imprime main() por consola: "nuevo" / "ya_cubierto" / "ya_conocido" / "sin_importador"."""
+    vt = vt.copy()
+    vt["_dt"] = pd.to_datetime(vt["fecha_dua"], errors="coerce")
+    meses_periodo = list(range(1, mes_max + 1))
+
+    vt_anio = vt[vt["_dt"].dt.year == anio].copy()
+    vt_anio["mes"] = vt_anio["_dt"].dt.month
+    vt_per = vt_anio[vt_anio["mes"] <= mes_max]
+
+    marca_tot = vt_per.groupby("marca_normalizada").size()
+    marcas = sorted(marca_tot[marca_tot >= min_unidades_marca].index)
+    if marca_filtro:
+        marcas = [m for m in marcas if marca_filtro.upper() in str(m).upper()]
+    if not marcas:
+        return [], []
+
+    marcas_cubiertas = marcas_ya_cubiertas_por_cobertura(vt_anio, anio)
+
+    hallazgos = []
+    for marca in marcas:
+        sub_marca = vt_per[vt_per["marca_normalizada"] == marca]
+        imp_tot = sub_marca.groupby("importador").size()
+        importadores = imp_tot[imp_tot >= min_filas_importador].sort_values(ascending=False)
+
+        for imp, cnt in importadores.items():
+            sub = sub_marca[sub_marca["importador"] == imp]
+            por_mes = pd.Series({m: int((sub["mes"] == m).sum()) for m in meses_periodo})
+            if not detectar_ceros_sospechosos(por_mes):
+                continue
+
+            imp_str = "" if pd.isna(imp) or str(imp).strip().upper() in ("NAN", "NONE", "") else str(imp)
+            meses_str = " ".join(f"{MESES[m]}={int(por_mes[m])}" for m in meses_periodo)
+            meses_accion = meses_sospechosos(por_mes, meses_periodo)
+
+            if not imp_str:
+                categoria = "sin_importador"
+            elif (marca, imp_str) in YA_DOCUMENTADOS:
+                categoria = "ya_conocido"
+            elif marca in marcas_cubiertas:
+                categoria = "ya_cubierto"
+            else:
+                categoria = "nuevo"
+
+            hallazgos.append({
+                "marca": marca, "importador": imp_str, "filas": int(cnt),
+                "detalle": meses_str, "meses_accion": meses_accion, "categoria": categoria,
+            })
+
+    return hallazgos, marcas
+
+
 def _fecha_es(d: date) -> str:
     return f"{d.day} de {MESES_ES[d.month]} de {d.year}"
 
@@ -292,11 +354,6 @@ def main() -> int:
     vt["_dt"] = pd.to_datetime(vt["fecha_dua"], errors="coerce")
     anio = args.anio or int(vt["_dt"].dt.year.max())
     mes_max = args.mes or int(vt[vt["_dt"].dt.year == anio]["_dt"].dt.month.max())
-    meses_periodo = list(range(1, mes_max + 1))
-
-    vt_anio = vt[vt["_dt"].dt.year == anio].copy()
-    vt_anio["mes"] = vt_anio["_dt"].dt.month
-    vt_per = vt_anio[vt_anio["mes"] <= mes_max]
 
     print(f"\n{'=' * 65}")
     print(f"  CONTINUIDAD POR IMPORTADOR  —  Ene-{MESES[mes_max]} {anio}")
@@ -305,50 +362,16 @@ def main() -> int:
     print("  -- asi se detectan gaps de importador ocultos dentro de marcas con")
     print("  EXCEPCIONES (ej. SINOTRUK -- ver esa constante en validar_cobertura.py).\n")
 
-    marca_tot = vt_per.groupby("marca_normalizada").size()
-    marcas = sorted(marca_tot[marca_tot >= args.min_unidades_marca].index)
-    if args.marca:
-        marcas = [m for m in marcas if args.marca.upper() in str(m).upper()]
+    hallazgos, marcas = construir_hallazgos_continuidad(
+        vt, anio, mes_max,
+        min_unidades_marca=args.min_unidades_marca,
+        min_filas_importador=args.min_filas_importador,
+        marca_filtro=args.marca,
+    )
 
     if not marcas:
         print("  Ninguna marca cumple el filtro / umbral de volumen.")
         return 0
-
-    marcas_cubiertas = marcas_ya_cubiertas_por_cobertura(vt_anio, anio)
-
-    hallazgos = []
-    for marca in marcas:
-        sub_marca = vt_per[vt_per["marca_normalizada"] == marca]
-        imp_tot = sub_marca.groupby("importador").size()
-        importadores = imp_tot[imp_tot >= args.min_filas_importador].sort_values(ascending=False)
-
-        for imp, cnt in importadores.items():
-            sub = sub_marca[sub_marca["importador"] == imp]
-            por_mes = pd.Series({m: int((sub["mes"] == m).sum()) for m in meses_periodo})
-            if not detectar_ceros_sospechosos(por_mes):
-                continue
-
-            # importador puede llegar como NaN real o como string literal "nan"/"none" (ya
-            # pasó por .astype(str) en algún punto del pipeline) -- tratar ambos como vacío.
-            imp_str = "" if pd.isna(imp) or str(imp).strip().upper() in ("NAN", "NONE", "") else str(imp)
-            meses_str = " ".join(f"{MESES[m]}={int(por_mes[m])}" for m in meses_periodo)
-            meses_accion = meses_sospechosos(por_mes, meses_periodo)
-
-            if not imp_str:
-                # Sin importador no se puede buscar en Veritrade -- es un hallazgo de calidad de
-                # dato aparte, no una accion de descarga.
-                categoria = "sin_importador"
-            elif (marca, imp_str) in YA_DOCUMENTADOS:
-                categoria = "ya_conocido"
-            elif marca in marcas_cubiertas:
-                categoria = "ya_cubierto"
-            else:
-                categoria = "nuevo"
-
-            hallazgos.append({
-                "marca": marca, "importador": imp_str, "filas": int(cnt),
-                "detalle": meses_str, "meses_accion": meses_accion, "categoria": categoria,
-            })
 
     print(f"  {len(marcas)} marca(s) analizadas (>= {args.min_unidades_marca} unidades en el período).\n")
 

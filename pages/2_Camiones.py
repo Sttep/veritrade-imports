@@ -10,15 +10,25 @@ import plotly.graph_objects as go
 from datetime import datetime
 from calendar import monthrange
 from pathlib import Path
-import io
 import re
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from shared.dashboard_helpers import (  # noqa: E402
+    calc_var, descargar_csv, excel_bytes, pct, render_bloque,
+    render_kpi_cards, safe_selectbox, tabla_dl, vc_reales,
+)
+from shared.riesgos import (  # noqa: E402
+    hay_qa_silver, obtener_alertas_continuidad, obtener_conflictos_exclusion,
+    obtener_embudo_importador, obtener_periodo_riesgos,
+)
 
 warnings.filterwarnings("ignore")
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Importaciones de Camiones - Dashboard",
                    page_icon="🚛", layout="wide",
-                   initial_sidebar_state="collapsed")
+                   initial_sidebar_state="expanded")
 
 # ── CONSTANTES ────────────────────────────────────────────────────────────────
 COLOR_SINOTRUK = '#F6E421'
@@ -92,7 +102,6 @@ MAPEO_COLS = {
 st.markdown("""<style>
 .block-container{padding:0.5rem 1.5rem!important;max-width:100%!important;}
 .main{background-color:#F5F5F5;}
-[data-testid="stSidebar"],[data-testid="collapsedControl"]{display:none;}
 div[data-testid="stMultiSelect"]>div{min-height:48px!important;
   background-color:#FFFFFF!important;border-radius:8px!important;}
 div[data-testid="stHorizontalBlock"]:has(.kpi-row-marker){
@@ -240,100 +249,11 @@ def normalizar_traccion(val):
         return m.group(1)
     return v if v else "N/D"
 
-def calc_var(row, col_act, col_ant):
-    ant, act = row[col_ant], row[col_act]
-    if ant == 0:
-        return "+100%" if act > 0 else "0%"
-    return f"{((act-ant)/ant*100):+.1f}%"
-
 def destacar_sinotruk(row):
     for col in [COL_MARCA,'Marca','Actor Comercial']:
         if col in row.index and row[col] == MARCA_PROPIA:
             return ['background-color:#FFF8E1;font-weight:bold;']*len(row)
     return ['']*len(row)
-
-def descargar_csv(df):
-    return df.to_csv(index=False).encode('utf-8')
-
-@st.cache_data
-def excel_bytes(df_tuple, hoja="Datos"):
-    df = pd.DataFrame(df_tuple)
-    buf = io.BytesIO()
-    with pd.ExcelWriter(buf, engine='openpyxl') as w:
-        df.to_excel(w, sheet_name=hoja, index=False)
-    return buf.getvalue()
-
-def render_bloque(titulo, fig, df_tabla, key, nombre="datos"):
-    raw = df_tabla.data if hasattr(df_tabla,'data') else df_tabla
-    c1, c2 = st.columns([6,1])
-    with c1:
-        if titulo:
-            st.markdown(f'<div class="section-header"><p class="section-title-text">{titulo}</p></div>',
-                        unsafe_allow_html=True)
-    with c2:
-        with st.popover("📥", use_container_width=True):
-            cx, cy = st.columns(2)
-            with cx:
-                try:
-                    st.download_button("xlsx", excel_bytes(tuple(raw.itertuples(index=False)), nombre[:30]),
-                                        f"{nombre}.xlsx", key=f"xl_{key}", use_container_width=True)
-                except Exception:
-                    pass
-            with cy:
-                try:
-                    st.download_button("csv", descargar_csv(raw), f"{nombre}.csv",
-                                        key=f"csv_{key}", use_container_width=True)
-                except Exception:
-                    pass
-    if fig:
-        st.plotly_chart(fig, use_container_width=True,
-                        config={'displayModeBar':True,'displaylogo':False})
-    with st.expander("📊 Ver tabla", expanded=False):
-        st.dataframe(df_tabla, hide_index=True, use_container_width=True)
-
-def render_kpi_cards(kpis: list[dict]):
-    """4 tarjetas KPI nativas (st.metric) -- fondo claro por default, sin CSS
-    custom. Cada kpi: {"titulo": str, "valor": str, "subtitulo": str (opcional)}."""
-    cols = st.columns(min(len(kpis), 4))
-    for col, k in zip(cols, kpis[:4]):
-        with col:
-            st.metric(k['titulo'], k['valor'])
-            if k.get('subtitulo'):
-                st.caption(k['subtitulo'])
-
-def vc_reales(serie):
-    """Igual que serie.value_counts() pero sin las categorías fantasma en 0
-    -- marca_norm/categoria_carroceria son dtype 'category' con TODAS las
-    marcas del dataset completo; al filtrar df_actual (ej. Vista=Sinotruk),
-    value_counts() igual devuelve las ~90 categorías del dataset original
-    con conteo 0 para las que no están en el subset filtrado."""
-    vc = serie.value_counts()
-    return vc[vc > 0]
-
-def safe_selectbox(label, options, key, **kwargs):
-    """Igual que st.selectbox pero resetea la selección persistida si ya no
-    está en `options` (ej. se angostó el rango de fechas) -- evita el
-    StreamlitAPIException que encontró rompe-dashboard."""
-    if key in st.session_state and st.session_state[key] not in options:
-        del st.session_state[key]
-    return st.selectbox(label, options, key=key, **kwargs)
-
-def tabla_dl(df_tabla, key, nombre="datos"):
-    """Muestra un dataframe con botones de descarga xlsx/csv debajo."""
-    st.dataframe(df_tabla, hide_index=True, use_container_width=True)
-    cx, cy = st.columns(2)
-    with cx:
-        try:
-            st.download_button("📥 xlsx", excel_bytes(tuple(df_tabla.itertuples(index=False)), nombre[:30]),
-                                f"{nombre}.xlsx", key=f"xl_{key}", use_container_width=True)
-        except Exception:
-            pass
-    with cy:
-        try:
-            st.download_button("📥 csv", descargar_csv(df_tabla), f"{nombre}.csv",
-                                key=f"csv_{key}", use_container_width=True)
-        except Exception:
-            pass
 
 def insights_ejecutivos(df_act, df_ant, total_act, total_ant):
     ins = []
@@ -368,6 +288,59 @@ def insights_ejecutivos(df_act, df_ant, total_act, total_ant):
                         'titulo':f'💰 FOB Prom: US$ {fob:,.0f}',
                         'texto':f'Variación {vf:+.1f}% vs año anterior (US$ {fob_a:,.0f})'})
     return ins[:4]
+
+
+def insights_por_marca(df_act, df_ant, top_n=5, min_uds=20):
+    """Hallazgos automáticos: delta de pp de share por marca (con umbral mínimo
+    de unidades para no generar ruido de marcas con 1-2 uds -- ver liz-z26.5),
+    más crecimiento por segmento y concentración de origen si son notorios.
+    Bloque ADICIONAL a insights_ejecutivos(), no lo reemplaza."""
+    total_a, total_b = len(df_act), len(df_ant)
+    bullets = []
+
+    if total_a and total_b and COL_MARCA in df_act.columns:
+        rank_act = df_act[COL_MARCA].value_counts()
+        rank_ant = df_ant[COL_MARCA].value_counts() if COL_MARCA in df_ant.columns else pd.Series(dtype=int)
+        deltas = []
+        for m in rank_act[rank_act >= min_uds].index:
+            ms_a = pct(int(rank_act.get(m, 0)), total_a)
+            ms_b = pct(int(rank_ant.get(m, 0)), total_b) if total_b else 0.0
+            deltas.append((str(m), round(ms_a - ms_b, 1), ms_a, ms_b))
+        deltas.sort(key=lambda d: abs(d[1]), reverse=True)
+        for m, d, ms_a, ms_b in deltas[:top_n]:
+            if d > 0:
+                icono, verbo = "📈", "ganó"
+            elif d < 0:
+                icono, verbo = "📉", "cayó"
+            else:
+                icono, verbo = "➖", "se mantuvo en"
+            bullets.append(f"{icono} **{m}** {verbo} {abs(d):.1f} pp de share "
+                           f"({ms_b:.1f}% → {ms_a:.1f}%)")
+
+    if 'categoria_carroceria' in df_act.columns:
+        seg_act = df_act['categoria_carroceria'].apply(_bucket_segmento_guia).value_counts()
+        seg_ant = (df_ant['categoria_carroceria'].apply(_bucket_segmento_guia).value_counts()
+                   if 'categoria_carroceria' in df_ant.columns else pd.Series(dtype=int))
+        for seg in ['Camiones', 'Tractos', 'Volquetes']:
+            a, b = int(seg_act.get(seg, 0)), int(seg_ant.get(seg, 0))
+            if b >= min_uds:
+                var = (a - b) / b * 100
+                if abs(var) >= 15:
+                    icono = "🚛" if var > 0 else "🔻"
+                    verbo = "crecieron" if var > 0 else "cayeron"
+                    bullets.append(f"{icono} Los {seg.lower()} {verbo} {abs(var):.0f}% interanual")
+
+    if 'pais_origen' in df_act.columns and total_a:
+        origen = df_act['pais_origen'].astype(str).str.upper().str.strip().value_counts()
+        if not origen.empty:
+            top_pais, n_pais = str(origen.index[0]), int(origen.iloc[0])
+            share_pais = pct(n_pais, total_a)
+            if share_pais >= 40:
+                bullets.append(f"🌏 {top_pais.title()} ya representa {share_pais:.0f}% del origen "
+                               f"de las unidades")
+
+    return bullets
+
 
 # ── CARGA ─────────────────────────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
@@ -478,18 +451,18 @@ with col_desde:
                 unsafe_allow_html=True)
     c1, c2 = st.columns([1,1.1], gap="small")
     with c1:
-        mes_ini = st.selectbox("Mi", MESES_NOMBRES, index=0, label_visibility="collapsed", key="mes_ini")
+        mes_ini = safe_selectbox("Mi", MESES_NOMBRES, index=0, label_visibility="collapsed", key="mes_ini")
     with c2:
-        año_ini = st.selectbox("Ai", años_disp, index=0, label_visibility="collapsed", key="año_ini")
+        año_ini = safe_selectbox("Ai", años_disp, index=0, label_visibility="collapsed", key="año_ini")
 
 with col_hasta:
     st.markdown('<div style="font-size:0.6rem;color:#888;font-weight:700;margin-bottom:2px;">📅 Hasta</div>',
                 unsafe_allow_html=True)
     c3, c4 = st.columns([1,1.1], gap="small")
     with c3:
-        mes_fin = st.selectbox("Mf", MESES_NOMBRES, index=len(MESES_NOMBRES)-1, label_visibility="collapsed", key="mes_fin")
+        mes_fin = safe_selectbox("Mf", MESES_NOMBRES, index=len(MESES_NOMBRES)-1, label_visibility="collapsed", key="mes_fin")
     with c4:
-        año_fin = st.selectbox("Af", años_disp, index=len(años_disp)-1, label_visibility="collapsed", key="año_fin")
+        año_fin = safe_selectbox("Af", años_disp, index=len(años_disp)-1, label_visibility="collapsed", key="año_fin")
 
 with col_titulo:
     col_txt, col_toggle = st.columns([2,1])
@@ -571,7 +544,7 @@ with col_seg:
 
     col_topn, col_graf = st.columns(2)
     with col_topn:
-        TOP_N = st.selectbox("Top", [10, 15, 20, 30, 50], index=1, key="top_n_global",
+        TOP_N = safe_selectbox("Top", [10, 15, 20, 30, 50], index=1, key="top_n_global",
                              help="Cuántas filas muestran las tablas de ranking (Mercado, Marca y "
                                   "Segmento, Camiones, Tractos, Volquetes). No afecta Segmentos, "
                                   "Volquetes por Origen ni Combustible, que tienen categorías fijas.")
@@ -579,7 +552,7 @@ with col_seg:
         st.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
         MOSTRAR_GRAFICO = st.checkbox("📊 Gráficos", value=True, key="mostrar_grafico",
                                       help="Las tablas siempre se muestran; esto solo agrega o quita "
-                                           "los gráficos de las 8 secciones del reporte.")
+                                           "los gráficos del reporte.")
 
 total_act = len(df_actual)
 total_ant = len(df_anterior)
@@ -626,19 +599,8 @@ with col_kpis:
     st.caption("🎯 La proyección es una extrapolación lineal del ritmo actual — no es un pedido "
                "confirmado ni un dato oficial de cierre.")
 
-# ── INSIGHTS ──────────────────────────────────────────────────────────────────
+# ── INSIGHTS (parte de la portada "🧭 Resumen Ejecutivo", ver render_resumen_ejecutivo) ────
 ins = insights_ejecutivos(df_actual, df_anterior, total_act, total_ant)
-if ins:
-    st.markdown("### 🔍 Resumen Ejecutivo del Período")
-    cols_i = st.columns(min(len(ins),4))
-    for i, item in enumerate(ins):
-        with cols_i[i%4]:
-            st.markdown(f"""
-            <div class="insight-card insight-{item['tipo']}">
-              <div class="insight-title">{item['titulo']}</div>
-              <div class="insight-text">{item['texto']}</div>
-            </div>""", unsafe_allow_html=True)
-    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
 if df_actual.empty:
     st.warning("⚠️ Sin datos para el período seleccionado.")
@@ -647,9 +609,8 @@ if df_actual.empty:
 año_actual = año_fin_int
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SECCIÓN PRESERVADA — MARKET SHARE (detalle histórico, tendencia + segmento/peso)
-# No es una de las 10 pestañas de gerencia -- se mantiene intacta como sección
-# extendida (nada se borra, ver plan de modernización).
+# MARKET SHARE detalle histórico (tendencia mensual + segmento/peso + tracción).
+# Se llama entera dentro del expander "📈 Tendencias" al final del archivo.
 # ══════════════════════════════════════════════════════════════════════════════
 def render_market_share_detalle():
     tend = df_actual.groupby(['año','mes','mes_nombre']).size().reset_index(name='Unidades')
@@ -724,7 +685,7 @@ def render_market_share_detalle():
 
         with st.expander("🔍 Ver tabla — Composición por Segmento (marca + modelo)", expanded=False):
             segs_disp = [s for s in SEG_ORDEN[:-1] if (df_actual['segmento_peso']==s).any()]
-            seg_pick = st.selectbox("Segmento a revisar:", segs_disp, key="seg_composicion_pick")
+            seg_pick = safe_selectbox("Segmento a revisar:", segs_disp, key="seg_composicion_pick")
             sub = df_actual[df_actual['segmento_peso'] == seg_pick]
             total = len(sub)
             comp = (sub.groupby([COL_MARCA, COL_MODELO], observed=True)
@@ -755,31 +716,90 @@ def render_market_share_detalle():
             st.dataframe(pd.DataFrame(resumen), hide_index=True, use_container_width=True)
         elif años_lista:
             st.info(f"Años disponibles: {años_lista}. Verifica los filtros de carrocería.")
-    st.divider()
+    with st.expander("🥧 Ver más cortes (Carrocería, Combustible, Tracción)", expanded=False):
+        cl, cr = st.columns(2)
+        with cl:
+            share = df_actual['categoria_carroceria'].value_counts().reset_index()
+            share.columns = ['Carrocería','Unidades']
+            share['% Share'] = (share['Unidades']/share['Unidades'].sum()*100).round(1)
+            fig_p = px.pie(share, values='Unidades', names='Carrocería', hole=0.4,
+                           color_discrete_sequence=COLOR_PALETTE)
+            render_bloque("🥧 Por Carrocería", fig_p, share, "share", "market_share")
+        with cr:
+            if 'combustible_norm' in df_actual.columns:
+                comb = df_actual['combustible_norm'].value_counts().reset_index()
+                comb.columns = ['Combustible','Unidades']
+                fig_cb = px.pie(comb[comb['Unidades']>0], values='Unidades', names='Combustible',
+                                hole=0.4, color_discrete_sequence=COLOR_PALETTE)
+                render_bloque("⛽ Por Combustible", fig_cb, comb, "comb", "combustible")
+            if 'traccion' in df_actual.columns:
+                st.divider()
+                trac = df_actual['traccion'].value_counts().head(8).reset_index()
+                trac.columns = ['Tracción','Unidades']
+                fig_tr = px.bar(trac[trac['Unidades']>0], x='Tracción', y='Unidades',
+                                text_auto=True, color_discrete_sequence=['#4A90E2'])
+                fig_tr.update_layout(plot_bgcolor='white', showlegend=False)
+                render_bloque("⚙️ Por Tracción", fig_tr, trac, "trac", "traccion")
 
-    cl, cr = st.columns(2)
-    with cl:
-        share = df_actual['categoria_carroceria'].value_counts().reset_index()
-        share.columns = ['Carrocería','Unidades']
-        share['% Share'] = (share['Unidades']/share['Unidades'].sum()*100).round(1)
-        fig_p = px.pie(share, values='Unidades', names='Carrocería', hole=0.4,
-                       color_discrete_sequence=COLOR_PALETTE)
-        render_bloque("🥧 Por Carrocería", fig_p, share, "share", "market_share")
-    with cr:
-        if 'combustible_norm' in df_actual.columns:
-            comb = df_actual['combustible_norm'].value_counts().reset_index()
-            comb.columns = ['Combustible','Unidades']
-            fig_cb = px.pie(comb[comb['Unidades']>0], values='Unidades', names='Combustible',
-                            hole=0.4, color_discrete_sequence=COLOR_PALETTE)
-            render_bloque("⛽ Por Combustible", fig_cb, comb, "comb", "combustible")
-        if 'traccion' in df_actual.columns:
-            st.divider()
-            trac = df_actual['traccion'].value_counts().head(8).reset_index()
-            trac.columns = ['Tracción','Unidades']
-            fig_tr = px.bar(trac[trac['Unidades']>0], x='Tracción', y='Unidades',
-                            text_auto=True, color_discrete_sequence=['#4A90E2'])
-            fig_tr.update_layout(plot_bgcolor='white', showlegend=False)
-            render_bloque("⚙️ Por Tracción", fig_tr, trac, "trac", "traccion")
+def render_comparador_marcas():
+    """Comparador de 2 marcas promovido a expander de primer nivel (liz-z26.7)
+    -- versión liviana (unidades + FOB + share + tendencia mensual), simplificada
+    a solo marcas (sin el toggle Importadores). El comparador completo (con
+    carrocería/top modelos/evolución de precios, y también disponible para
+    Importadores) sigue dentro de 'Competidores' -> Comparativa detallada."""
+    min_uds_cmp = st.number_input("Mín. unidades para aparecer en el comparador:",
+                                  min_value=1, value=20, step=5, key="min_uds_cmp")
+    marcas_cmp = sorted(df_actual[df_actual[COL_MARCA].notna()][COL_MARCA].unique())
+    marcas_cmp = [m for m in marcas_cmp if (df_actual[COL_MARCA] == m).sum() >= min_uds_cmp]
+
+    if len(marcas_cmp) < 2:
+        if es_sinotruk:
+            st.info("Solo hay 1 marca en Modo Sinotruk — cambiá a Vista Global para comparar.")
+        else:
+            st.info("No hay suficientes marcas con volumen para comparar (bajá el mínimo de unidades).")
+        return
+
+    ca, cb = st.columns(2)
+    with ca:
+        m_a = safe_selectbox("Marca A", marcas_cmp, index=0, key="cmp_marca_a")
+    with cb:
+        m_b = safe_selectbox("Marca B", marcas_cmp, index=min(1, len(marcas_cmp) - 1), key="cmp_marca_b")
+
+    if m_a == m_b:
+        st.warning("Elegí dos marcas distintas para comparar.")
+        return
+
+    df_a = df_actual[df_actual[COL_MARCA] == m_a]
+    df_b = df_actual[df_actual[COL_MARCA] == m_b]
+    u_a, u_b = len(df_a), len(df_b)
+    s_a, s_b = pct(u_a, total_act), pct(u_b, total_act)
+    fob_a = df_a[COL_FOB].mean() if COL_FOB and COL_FOB in df_a.columns and df_a[COL_FOB].sum() > 0 else None
+    fob_b = df_b[COL_FOB].mean() if COL_FOB and COL_FOB in df_b.columns and df_b[COL_FOB].sum() > 0 else None
+
+    cc1, cc2 = st.columns(2)
+    with cc1:
+        st.metric(f"🏷️ {m_a}", f"{u_a:,} uds", f"{s_a:.1f}% share")
+        if fob_a:
+            st.caption(f"FOB Prom: US$ {fob_a:,.0f}")
+    with cc2:
+        st.metric(f"🏷️ {m_b}", f"{u_b:,} uds", f"{s_b - s_a:+.1f}pp vs {m_a[:15]}")
+        if fob_b:
+            st.caption(f"FOB Prom: US$ {fob_b:,.0f}")
+
+    if MOSTRAR_GRAFICO:
+        t_a = df_a.groupby('mes_nombre').size().reset_index(name=str(m_a)[:20])
+        t_b = df_b.groupby('mes_nombre').size().reset_index(name=str(m_b)[:20])
+        h2h = t_a.merge(t_b, on='mes_nombre', how='outer').fillna(0)
+        h2h['mes_nombre'] = pd.Categorical(h2h['mes_nombre'], MESES_NOMBRES, ordered=True)
+        fig_h = px.line(h2h.sort_values('mes_nombre').melt(id_vars='mes_nombre', var_name='Actor', value_name='Uds'),
+                        x='mes_nombre', y='Uds', color='Actor', markers=True,
+                        color_discrete_sequence=COLOR_PALETTE, title="Tendencia mensual")
+        fig_h.update_layout(plot_bgcolor='white', height=280)
+        st.plotly_chart(fig_h, use_container_width=True)
+
+    st.caption("Para el detalle completo (carrocería, top modelos, evolución de precios) "
+               "y comparar por Importador, abrí '🏆 Competidores' → Comparativa detallada.")
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SECCIÓN PRESERVADA — COMPETENCIA (head-to-head, detalle de importadores)
@@ -911,7 +931,7 @@ def render_competencia():
                     st.plotly_chart(fig_carr, use_container_width=True)
 
                     carrs = ['TODOS'] + list(carr_data['Carrocería'].unique())
-                    carr_sel = st.selectbox("Selecciona carrocería:", carrs, key=f"carr_{actor}")
+                    carr_sel = safe_selectbox("Selecciona carrocería:", carrs, key=f"carr_{actor}")
                     if carr_sel != 'TODOS' and COL_MODELO in df_f.columns:
                         df_carr = df_f[df_f['categoria_carroceria']==carr_sel]
                         st.markdown(f"##### Modelos — {carr_sel}")
@@ -1029,9 +1049,9 @@ def render_competencia():
         if len(actores_hh) >= 2:
             ca, cb = st.columns(2)
             with ca:
-                a_a = st.selectbox(f"{label_a} A", actores_hh, index=0, key="h2h_a")
+                a_a = safe_selectbox(f"{label_a} A", actores_hh, index=0, key="h2h_a")
             with cb:
-                a_b = st.selectbox(f"{label_a} B", actores_hh,
+                a_b = safe_selectbox(f"{label_a} B", actores_hh,
                                     index=min(1,len(actores_hh)-1), key="h2h_b")
             if a_a != a_b:
                 df_a = df_actual[df_actual[COL_ACTOR]==a_a]
@@ -1099,7 +1119,7 @@ def render_competencia():
                 st.markdown("##### 🚛 Comparación por Carrocería")
                 años_hh = sorted(set(df_a['año'].dropna().unique()) |
                                  set(df_b['año'].dropna().unique()))
-                año_sel = st.selectbox("Año:", [int(a) for a in años_hh],
+                año_sel = safe_selectbox("Año:", [int(a) for a in años_hh],
                                        index=len(años_hh)-1, key="año_hh")
                 da_año = df_a[df_a['año']==año_sel]
                 db_año = df_b[df_b['año']==año_sel]
@@ -1169,6 +1189,30 @@ def render_competencia():
                         fig_pc.update_layout(plot_bgcolor='white', height=260,
                                              yaxis_tickprefix='US$ ', yaxis_tickformat=',.0f')
                         st.plotly_chart(fig_pc, use_container_width=True)
+
+OBJETIVO_MS_SINOTRUK_DEFAULT = 25.0  # ver widget "Objetivo MS%" en render_sinotruk()
+
+
+def calcular_estado_sinotruk(df_act, df_ant, total_act, total_ant,
+                              objetivo_ms=OBJETIVO_MS_SINOTRUK_DEFAULT):
+    """Métricas + semáforo de negocio de la familia Sinotruk -- extraída de
+    render_sinotruk() (liz-z26.4) para reusarse también en el Resumen Ejecutivo
+    sin duplicar el cálculo de market share."""
+    m_sin = df_act[COL_MARCA].astype(str).str.upper().str.strip() == "SINOTRUK"
+    m_sin_ant = df_ant[COL_MARCA].astype(str).str.upper().str.strip() == "SINOTRUK"
+    n_sin, n_sin_ant = int(m_sin.sum()), int(m_sin_ant.sum())
+    ms_act = pct(n_sin, total_act)
+    ms_ant = pct(n_sin_ant, total_ant)
+    delta_ms = round(ms_act - ms_ant, 1)
+    if delta_ms >= 0 and ms_act >= objetivo_ms:
+        estado = "🟢"
+    elif delta_ms >= 0:
+        estado = "🟡"
+    else:
+        estado = "🔴"
+    return {"estado": estado, "n_sin": n_sin, "n_sin_ant": n_sin_ant,
+            "ms_act": ms_act, "ms_ant": ms_ant, "delta_ms": delta_ms, "objetivo_ms": objetivo_ms}
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SECCIÓN PRESERVADA — SINOTRUK / WITHMORY
@@ -1283,53 +1327,52 @@ def render_sinotruk():
 
         st.divider()
 
-        # ── Cuánto paga Sinotruk vs el mercado ──────────────────────────────────
-        st.markdown("#### 💰 Cuánto paga Sinotruk vs el mercado")
-        cif_sin = df_sin[COL_CIF].mean() if COL_CIF and COL_CIF in df_sin.columns and df_sin[COL_CIF].sum() > 0 else None
-        cif_mkt = df_actual[COL_CIF].mean() if COL_CIF and COL_CIF in df_actual.columns and df_actual[COL_CIF].sum() > 0 else None
+        # ── Cuánto paga Sinotruk vs el mercado (liz-z26.9: secundario, en expander) ──
+        with st.expander("💰 Cuánto paga Sinotruk vs el mercado", expanded=False):
+            cif_sin = df_sin[COL_CIF].mean() if COL_CIF and COL_CIF in df_sin.columns and df_sin[COL_CIF].sum() > 0 else None
+            cif_mkt = df_actual[COL_CIF].mean() if COL_CIF and COL_CIF in df_actual.columns and df_actual[COL_CIF].sum() > 0 else None
 
-        col_pf1, col_pf2 = st.columns(2)
-        if fob_sin and fob_mkt:
-            with col_pf1:
-                delta_fob_pct = (fob_sin - fob_mkt) / fob_mkt * 100
-                fig_fob_cmp = go.Figure(go.Bar(
-                    x=['Mercado (todas las marcas)', MARCA_PROPIA],
-                    y=[fob_mkt, fob_sin],
-                    text=[f"US$ {fob_mkt:,.0f}", f"US$ {fob_sin:,.0f}"],
-                    textposition='outside',
-                    marker_color=['#4A90E2', COLOR_SINOTRUK],
-                ))
-                fig_fob_cmp.update_layout(
-                    title=f"FOB Promedio — {delta_fob_pct:+.1f}% vs mercado",
-                    plot_bgcolor='white', height=300, showlegend=False,
-                    yaxis=dict(tickprefix="US$ ", gridcolor='#F0F0F0'),
-                )
-                st.plotly_chart(fig_fob_cmp, use_container_width=True)
-        if cif_sin and cif_mkt:
-            with col_pf2:
-                delta_cif_pct = (cif_sin - cif_mkt) / cif_mkt * 100
-                fig_cif_cmp = go.Figure(go.Bar(
-                    x=['Mercado (todas las marcas)', MARCA_PROPIA],
-                    y=[cif_mkt, cif_sin],
-                    text=[f"US$ {cif_mkt:,.0f}", f"US$ {cif_sin:,.0f}"],
-                    textposition='outside',
-                    marker_color=['#4A90E2', COLOR_SINOTRUK],
-                ))
-                fig_cif_cmp.update_layout(
-                    title=f"CIF Promedio — {delta_cif_pct:+.1f}% vs mercado",
-                    plot_bgcolor='white', height=300, showlegend=False,
-                    yaxis=dict(tickprefix="US$ ", gridcolor='#F0F0F0'),
-                )
-                st.plotly_chart(fig_cif_cmp, use_container_width=True)
-        if not (fob_sin and fob_mkt) and not (cif_sin and cif_mkt):
-            st.info("No hay datos de FOB/CIF suficientes para esta comparación.")
-        else:
-            precio_vs_mercado = pd.DataFrame({
-                'Grupo': ['Mercado (todas las marcas)', MARCA_PROPIA],
-                'FOB Promedio': [fob_mkt, fob_sin] if (fob_sin and fob_mkt) else [None, None],
-                'CIF Promedio': [cif_mkt, cif_sin] if (cif_sin and cif_mkt) else [None, None],
-            })
-            with st.expander("📊 Ver tabla — Precio vs mercado", expanded=False):
+            col_pf1, col_pf2 = st.columns(2)
+            if fob_sin and fob_mkt:
+                with col_pf1:
+                    delta_fob_pct = (fob_sin - fob_mkt) / fob_mkt * 100
+                    fig_fob_cmp = go.Figure(go.Bar(
+                        x=['Mercado (todas las marcas)', MARCA_PROPIA],
+                        y=[fob_mkt, fob_sin],
+                        text=[f"US$ {fob_mkt:,.0f}", f"US$ {fob_sin:,.0f}"],
+                        textposition='outside',
+                        marker_color=['#4A90E2', COLOR_SINOTRUK],
+                    ))
+                    fig_fob_cmp.update_layout(
+                        title=f"FOB Promedio — {delta_fob_pct:+.1f}% vs mercado",
+                        plot_bgcolor='white', height=300, showlegend=False,
+                        yaxis=dict(tickprefix="US$ ", gridcolor='#F0F0F0'),
+                    )
+                    st.plotly_chart(fig_fob_cmp, use_container_width=True)
+            if cif_sin and cif_mkt:
+                with col_pf2:
+                    delta_cif_pct = (cif_sin - cif_mkt) / cif_mkt * 100
+                    fig_cif_cmp = go.Figure(go.Bar(
+                        x=['Mercado (todas las marcas)', MARCA_PROPIA],
+                        y=[cif_mkt, cif_sin],
+                        text=[f"US$ {cif_mkt:,.0f}", f"US$ {cif_sin:,.0f}"],
+                        textposition='outside',
+                        marker_color=['#4A90E2', COLOR_SINOTRUK],
+                    ))
+                    fig_cif_cmp.update_layout(
+                        title=f"CIF Promedio — {delta_cif_pct:+.1f}% vs mercado",
+                        plot_bgcolor='white', height=300, showlegend=False,
+                        yaxis=dict(tickprefix="US$ ", gridcolor='#F0F0F0'),
+                    )
+                    st.plotly_chart(fig_cif_cmp, use_container_width=True)
+            if not (fob_sin and fob_mkt) and not (cif_sin and cif_mkt):
+                st.info("No hay datos de FOB/CIF suficientes para esta comparación.")
+            else:
+                precio_vs_mercado = pd.DataFrame({
+                    'Grupo': ['Mercado (todas las marcas)', MARCA_PROPIA],
+                    'FOB Promedio': [fob_mkt, fob_sin] if (fob_sin and fob_mkt) else [None, None],
+                    'CIF Promedio': [cif_mkt, cif_sin] if (cif_sin and cif_mkt) else [None, None],
+                })
                 tabla_dl(precio_vs_mercado, "precio_vs_mercado", "precio_sinotruk_vs_mercado")
 
         st.divider()
@@ -1353,7 +1396,7 @@ def render_sinotruk():
             tabla_dl(imp_sin, "imp_sin", "importadores_sinotruk")
 
         st.markdown("##### 🔍 Detalle por Importador")
-        importador_sel_sin = st.selectbox(
+        importador_sel_sin = safe_selectbox(
             "Selecciona un importador para ver su detalle:",
             imp_sin['Importador'].tolist(), key="importador_sin_sel")
 
@@ -1447,7 +1490,7 @@ def render_sinotruk():
         st.divider()
         st.markdown("#### 🏗️ Top Modelos Sinotruk")
         segmentos_disp_sin = ['TODOS'] + sorted(df_sin['categoria_carroceria'].dropna().unique().tolist())
-        segmento_sel_sin = st.selectbox("Segmento:", segmentos_disp_sin, key="segmento_sel_sin")
+        segmento_sel_sin = safe_selectbox("Segmento:", segmentos_disp_sin, key="segmento_sel_sin")
         df_sin_modelos = (df_sin if segmento_sel_sin == 'TODOS'
                           else df_sin[df_sin['categoria_carroceria'] == segmento_sel_sin])
 
@@ -1578,7 +1621,7 @@ def render_sinotruk():
         # Evolución de unidades por dealer (mensual)
         with st.expander("📦 Evolución mensual de unidades por dealer"):
             todos_imp_sin = ['TODOS'] + sorted(df_sin['grupo_importador'].dropna().unique().tolist())
-            imp_sel_sin = st.selectbox("Importador:", todos_imp_sin, key="imp_sel_sin")
+            imp_sel_sin = safe_selectbox("Importador:", todos_imp_sin, key="imp_sel_sin")
             df_evo_dealer = df_sin if imp_sel_sin=='TODOS' else df_sin[df_sin['grupo_importador']==imp_sel_sin]
 
             evu_sin = (df_evo_dealer.groupby(['año','mes','mes_nombre',COL_MARCA])
@@ -1646,7 +1689,7 @@ def render_mapa_origen():
         # ── Filtros ───────────────────────────────────────────────────────────
         mc1, mc2 = st.columns([2, 3])
         with mc1:
-            cont_sel = st.selectbox("🌍 Continente:", list(CONTINENTES.keys()), key="cont_sel")
+            cont_sel = safe_selectbox("🌍 Continente:", list(CONTINENTES.keys()), key="cont_sel")
         with mc2:
             paises_disp = ["TODOS"] + sorted(mapa_df_full['_origen'].unique().tolist())
             pais_sel = safe_selectbox("🗺️ País específico:", paises_disp, key="pais_sel")
@@ -1823,8 +1866,10 @@ def render_mapa_origen():
                         <b>{conc:.1f}%</b></div></div>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SECCIÓN PRESERVADA — AUDITORÍA / COBERTURA AAP (control de calidad interno,
-# no es una pestaña de gerencia -- se muestra al final, colapsada por default)
+# COBERTURA AAP — promovida de checkbox de QA interno a sección de negocio
+# real dentro de "⚠️ Riesgos" (rediseño Entrega 2): los huecos de cobertura
+# por importador (Zapler, INTERNATIONAL, FREIGHTLINER, DONGFENG) son
+# exactamente lo que gerencia pidió poder ver sin activar nada a mano.
 # ══════════════════════════════════════════════════════════════════════════════
 def render_auditoria():
     st.markdown("### 📊 Cobertura Veritrade vs. Mercado AAP")
@@ -1844,7 +1889,7 @@ def render_auditoria():
 
         # Filtrar por año seleccionado en sidebar
         años_aap = sorted(aap_raw["año"].dropna().unique().astype(int))
-        año_aap = st.selectbox("Año AAP", años_aap,
+        año_aap = safe_selectbox("Año AAP", años_aap,
                                index=len(años_aap) - 1, key="año_aap")
         aap = aap_raw[aap_raw["año"] == año_aap].copy()
 
@@ -1993,13 +2038,13 @@ def render_mercado():
             'Ranking': str(i), 'Marca': marca,
             'Último Mes': str(int(uds_ultimo_mes.get(marca, 0))),
             'Acumulado': int(uds),
-            'Market Share (%)': round(uds/total_mercado*100, 1) if total_mercado else 0.0,
+            'Market Share (%)': pct(uds, total_mercado),
             'Var. % vs Año Anterior': calc_var({'a': uds, 'b': ant}, 'a', 'b'),
         })
     if resto > 0:
         filas.append({'Ranking': '—', 'Marca': 'Otros competidores', 'Último Mes': '—',
                        'Acumulado': resto,
-                       'Market Share (%)': round(resto/total_mercado*100, 1) if total_mercado else 0.0,
+                       'Market Share (%)': pct(resto, total_mercado),
                        'Var. % vs Año Anterior': '—'})
     filas.append({'Ranking': '—', 'Marca': 'Total General', 'Último Mes': '—',
                    'Acumulado': total_mercado, 'Market Share (%)': 100.0,
@@ -2045,7 +2090,7 @@ def render_segmentos():
             'Segmento': seg,
             'Unidades Año Anterior': ant,
             'Unidades Año Actual': act,
-            'Participación por Segmento (%)': round(act/total*100, 1) if total else 0.0,
+            'Participación por Segmento (%)': pct(act, total),
             'Crecimiento Absoluto': act - ant,
         })
     tabla = pd.DataFrame(filas)
@@ -2059,7 +2104,20 @@ def render_segmentos():
         fig = px.bar(tabla, x='Segmento', y='Unidades Año Actual', text='Unidades Año Actual',
                     color='Segmento', color_discrete_sequence=COLOR_PALETTE)
         fig.update_layout(plot_bgcolor='white', showlegend=False, height=350)
-        st.plotly_chart(fig, use_container_width=True)
+        _ev_seg = st.plotly_chart(fig, use_container_width=True, on_select="rerun",
+                                   selection_mode="points", key="click_segmento")
+        _puntos_seg = _ev_seg.selection.points if _ev_seg and _ev_seg.selection else []
+        if _puntos_seg:
+            _seg_click = _puntos_seg[0].get("x")
+            if _seg_click in ['Camiones', 'Tractos', 'Volquetes']:
+                st.session_state["segmento_foco"] = _seg_click
+        else:
+            # Deseleccionar la barra (click de nuevo / click afuera) debe limpiar
+            # el foco -- si no, Competidores/Tendencias quedan filtrados por un
+            # segmento que el gráfico ya no muestra como seleccionado (rompe-dashboard).
+            st.session_state.pop("segmento_foco", None)
+        st.caption("💡 Click en una barra para filtrar Competidores/Tendencias por ese segmento "
+                   "(drill-down).")
 
     with st.expander("🔍 Ver detalle completo por carrocería (8 categorías)", expanded=False):
         detalle = vc_reales(df_actual['categoria_carroceria']).reset_index()
@@ -2085,7 +2143,7 @@ def render_marca_segmento():
             tot_seg = int(totales_seg.get(seg, 0))
             suma_top[seg] += uds
             fila[f'{seg} — Unidades'] = uds
-            fila[f'{seg} — % Share'] = round(uds/tot_seg*100, 1) if tot_seg else 0.0
+            fila[f'{seg} — % Share'] = pct(uds, tot_seg)
         filas.append(fila)
     tabla = pd.DataFrame(filas)
 
@@ -2098,7 +2156,7 @@ def render_marca_segmento():
         resto = tot_seg - suma_top[seg]
         hay_otros = hay_otros or resto > 0
         fila_otros[f'{seg} — Unidades'] = resto
-        fila_otros[f'{seg} — % Share'] = round(resto/tot_seg*100, 1) if tot_seg else 0.0
+        fila_otros[f'{seg} — % Share'] = pct(resto, tot_seg)
     if hay_otros:
         tabla = pd.concat([tabla, pd.DataFrame([fila_otros])], ignore_index=True)
 
@@ -2265,8 +2323,8 @@ def render_combustible():
     for cat in CATS_GUIA:
         act = int(comb_act.get(cat, 0))
         ant = int(comb_ant.get(cat, 0))
-        pct_act = round(act/tot_act*100, 1) if tot_act else 0.0
-        pct_ant = round(ant/tot_ant*100, 1) if tot_ant else 0.0
+        pct_act = pct(act, tot_act)
+        pct_ant = pct(ant, tot_ant)
         filas.append({
             'Tecnología': cat.title() if cat not in ('GNV',) else cat,
             '% Participación Periodo Anterior': pct_ant,
@@ -2293,33 +2351,263 @@ def render_combustible():
         fig.update_layout(plot_bgcolor='white', height=350)
         st.plotly_chart(fig, use_container_width=True)
 
-# ══════════════════════════════════════════════════════════════════════════════
-# VISTA ÚNICA — las 8 secciones de gerencia, una debajo de la otra, sin clicks.
-# (antes era navegación por sidebar; el usuario pidió todo visible de una vez).
-# ══════════════════════════════════════════════════════════════════════════════
-if es_sinotruk:
-    st.info("🟡 Estás en modo Sinotruk: las 8 secciones de abajo quedan reducidas a esa sola marca "
-            "(100% share). Para el detalle real de importadores, Withmory y evolución de market "
-            "share, abrí '📚 Análisis extendido' más abajo.")
+def render_resumen_ejecutivo(alertas_continuidad: pd.DataFrame):
+    """Portada del informe: semáforo de negocio + insights + Top N marcas + mix
+    de segmento + teaser de Riesgos. Reusa agregados livianos (no toca
+    render_mercado/render_segmentos)."""
+    rank_act_sem = vc_reales(df_actual[COL_MARCA])
+    total_mercado_sem = int(rank_act_sem.sum())
+    lider = rank_act_sem.sort_values(ascending=False).index[0] if not rank_act_sem.empty else None
 
-for _fn in [render_mercado, render_segmentos, render_marca_segmento, render_camiones,
-            render_tractos, render_volquetes, render_origen, render_combustible]:
-    _fn()
+    if var_pct is None:
+        estado_mercado, txt_mercado = "⚪", "sin histórico"
+    elif var_pct > 5:
+        estado_mercado, txt_mercado = "🟢", f"{var_pct:+.1f}% YoY"
+    elif var_pct >= -5:
+        estado_mercado, txt_mercado = "🟡", f"{var_pct:+.1f}% YoY"
+    else:
+        estado_mercado, txt_mercado = "🔴", f"{var_pct:+.1f}% YoY"
+
+    if lider:
+        ms_lider_act = pct(int(rank_act_sem.get(lider, 0)), total_mercado_sem)
+        rank_ant_sem = vc_reales(df_anterior[COL_MARCA])
+        total_mercado_ant_sem = int(rank_ant_sem.sum())
+        ms_lider_ant = pct(int(rank_ant_sem.get(lider, 0)), total_mercado_ant_sem)
+        delta_lider = round(ms_lider_act - ms_lider_ant, 1)
+        if delta_lider >= 0:
+            estado_comp = "🟢"
+        elif delta_lider >= -2:
+            estado_comp = "🟡"
+        else:
+            estado_comp = "🔴"
+        txt_comp = f"{lider} {delta_lider:+.1f}pp"
+    else:
+        estado_comp, txt_comp = "⚪", "sin datos"
+
+    _est_sin = calcular_estado_sinotruk(df_actual, df_anterior, total_act, total_ant)
+
+    cs1, cs2, cs3 = st.columns(3)
+    cs1.metric(f"{estado_mercado} Mercado", txt_mercado)
+    cs2.metric(f"{estado_comp} Competencia", txt_comp, help=f"Marca líder: {lider or '—'}")
+    cs3.metric(f"{_est_sin['estado']} Sinotruk (share)", f"{_est_sin['delta_ms']:+.1f}pp",
+               help=f"MS actual {_est_sin['ms_act']:.1f}% (objetivo {_est_sin['objetivo_ms']:.0f}%)")
+
+    if ins:
+        cols_i = st.columns(min(len(ins), 4))
+        for i, item in enumerate(ins):
+            with cols_i[i % 4]:
+                st.markdown(f"""
+                <div class="insight-card insight-{item['tipo']}">
+                  <div class="insight-title">{item['titulo']}</div>
+                  <div class="insight-text">{item['texto']}</div>
+                </div>""", unsafe_allow_html=True)
+
+    bullets_marca = insights_por_marca(df_actual, df_anterior)
+    if bullets_marca:
+        st.markdown("###### 📌 Hallazgos del período")
+        for b in bullets_marca:
+            st.markdown(f"- {b}")
+
+    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+
+    rank_act = rank_act_sem
+    total_mercado = total_mercado_sem
+
+    seg_act = df_actual['categoria_carroceria'].apply(_bucket_segmento_guia).value_counts()
+    total_seg = int(seg_act.sum())
+
+    c1, c2 = st.columns(2)
+    with c1:
+        top_hdr, top_sel = st.columns([2, 2])
+        with top_sel:
+            top_resumen = st.radio("Top", [5, 10, 15, 20], index=1, horizontal=True,
+                                   key="top_resumen_ejecutivo", label_visibility="collapsed")
+        with top_hdr:
+            st.markdown(f"##### 👑 Top {top_resumen} marcas")
+        topN_resumen = rank_act.sort_values(ascending=False).head(top_resumen)
+        tabla_topN = pd.DataFrame([
+            {'Marca': m, 'Unidades': int(u), 'Share (%)': pct(u, total_mercado)}
+            for m, u in topN_resumen.items()
+        ])
+        st.dataframe(tabla_topN, hide_index=True, use_container_width=True)
+    with c2:
+        st.markdown("##### 📊 Mercado por segmento")
+        if MOSTRAR_GRAFICO and total_seg:
+            fig = px.pie(names=['Camiones', 'Tractos', 'Volquetes'],
+                        values=[int(seg_act.get(s, 0)) for s in ['Camiones', 'Tractos', 'Volquetes']],
+                        hole=0.5, color_discrete_sequence=COLOR_PALETTE)
+            fig.update_layout(height=280, margin=dict(t=10, b=10, l=10, r=10))
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            for s in ['Camiones', 'Tractos', 'Volquetes']:
+                st.caption(f"{s}: {int(seg_act.get(s, 0)):,} uds")
+
+    n_nuevas = int((alertas_continuidad['categoria'] == 'nuevo').sum()) if not alertas_continuidad.empty else 0
+    if n_nuevas:
+        st.warning(f"⚠️ {n_nuevas} alerta(s) nueva(s) de continuidad por importador — ver sección "
+                   f"'⚠️ Riesgos' más abajo.")
+    else:
+        st.caption("✅ Sin alertas nuevas de continuidad por importador en el período más reciente "
+                   "disponible — ver detalle en '⚠️ Riesgos'.")
+
+
+def render_riesgos(alertas_continuidad: pd.DataFrame):
+    _periodo = obtener_periodo_riesgos()
+    if _periodo:
+        _anio_r, _mes_r = _periodo
+        st.info(f"📅 Analizando: Ene–{MESES_NOMBRES[_mes_r - 1]} {_anio_r} — "
+                f"**independiente** del filtro de fechas de arriba (Continuidad, "
+                f"Conflictos de exclusión y Embudo siempre miran el último período "
+                f"disponible en camiones.parquet).")
+
+    conflictos = obtener_conflictos_exclusion()
+    embudo = obtener_embudo_importador()
+    nuevas = alertas_continuidad[alertas_continuidad['categoria'] == 'nuevo'] \
+        if not alertas_continuidad.empty else alertas_continuidad
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        n = len(nuevas)
+        st.metric(f"{'🔴' if n else '🟢'} Continuidad", f"{n}", "alerta(s) nueva(s)")
+    with c2:
+        n = len(conflictos)
+        st.metric(f"{'🟡' if n else '🟢'} Conflictos de exclusión", f"{n}", "término(s)")
+    with c3:
+        st.metric("📊 Auditoría", "ver abajo", "cobertura vs AAP")
+
+    render_auditoria()
     st.divider()
 
-with st.expander("📚 Análisis extendido (Market Share detalle, Competencia, Sinotruk/Withmory, "
-                  "Mapa Origen de todos los vehículos)", expanded=es_sinotruk):
-    render_market_share_detalle()
+    with st.expander("🔁 Continuidad por importador (ceros sospechosos)", expanded=False):
+        if alertas_continuidad.empty:
+            st.info("Sin ceros sospechosos en el período más reciente.")
+        else:
+            tabla_dl(alertas_continuidad, 'riesgos_continuidad', 'continuidad_importador')
+
+    with st.expander("⚠️ Conflictos de exclusión (término genérico tapa partida legítima)", expanded=False):
+        if not hay_qa_silver():
+            st.caption("No disponible en este entorno — requiere data/silver/*_qa.xlsx, "
+                       "no versionado en git.")
+        elif conflictos.empty:
+            st.info("Sin conflictos detectados.")
+        else:
+            st.caption("Ojo: esto NO significa que sean bugs — solo candidatos a revisar.")
+            tabla_dl(conflictos, 'riesgos_conflictos', 'conflictos_exclusion')
+
+    with st.expander("🔻 Embudo por importador (bronze → gold)", expanded=False):
+        if not hay_qa_silver():
+            st.caption("La columna 'excluidas_silver' no está disponible en este entorno "
+                       "(requiere data/silver/*_qa.xlsx, no versionado en git) — puede mostrar 0 "
+                       "sin que signifique que nada se excluyó en esa etapa.")
+        if embudo.empty:
+            st.info("Sin datos de embudo disponibles.")
+        else:
+            tabla_dl(embudo, 'riesgos_embudo', 'embudo_importador')
+
+
+# ── PANEL LATERAL — Hallazgos clave (sidebar reactivado a propósito, liz-z26.6:
+# revierte la decisión previa de ocultarlo, solo para este panel de solo lectura;
+# los filtros de fecha/vista siguen arriba, sin moverse) ────────────────────────
+with st.sidebar:
+    st.markdown("### 📌 Hallazgos clave")
+    st.caption("Se actualiza según los filtros elegidos arriba.")
+    if ins:
+        for _item in ins:
+            st.markdown(f"**{_item['titulo']}**")
+            st.caption(_item['texto'])
+    for _b in insights_por_marca(df_actual, df_anterior, top_n=3):
+        st.markdown(f"- {_b}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# INFORME EJECUTIVO — solo Resumen Ejecutivo + el ranking de Mercado quedan
+# siempre visibles (como portada de un informe); Mercado en Detalle, Comparar
+# Marcas, Competidores, Tendencias y Riesgos se abren bajo demanda para reducir
+# carga cognitiva, en vez de navegación por tabs/sidebar (rediseño Entrega 2,
+# Ronda 2 -- liz-z26.1 corrigió la densidad excesiva de la Ronda 1: antes había
+# 7 secciones seguidas siempre visibles antes del primer expander).
+# ══════════════════════════════════════════════════════════════════════════════
+if es_sinotruk:
+    st.info("🟡 Estás en modo Sinotruk: todo lo de abajo queda reducido a esa sola marca "
+            "(100% share). Para el detalle real de importadores, Withmory y evolución de "
+            "market share, abrí '🏆 Competidores' más abajo.")
+
+_alertas_continuidad = obtener_alertas_continuidad(("SINOTRUK",) if es_sinotruk else None)
+
+st.markdown("## 🧭 Resumen Ejecutivo")
+render_resumen_ejecutivo(_alertas_continuidad)
+st.divider()
+
+render_mercado()
+st.divider()
+
+_n_nuevas = int((_alertas_continuidad['categoria'] == 'nuevo').sum()) if not _alertas_continuidad.empty else 0
+_badge_riesgos = f" ({_n_nuevas} nueva(s))" if _n_nuevas else ""
+
+with st.expander("📦 Mercado en Detalle (Segmentos, Marca x Segmento, Combustible, Origen)", expanded=False):
+    for _fn in [render_segmentos, render_marca_segmento, render_combustible]:
+        _fn()
+        st.divider()
+    render_mapa_origen()
+    st.divider()
+    render_origen()
+
+with st.expander("⚔️ Comparar Marcas", expanded=False):
+    render_comparador_marcas()
+
+# ── DRILL-DOWN (liz-z26.10): click en una barra de render_segmentos() guarda
+# session_state["segmento_foco"] -- filtra Competidores/Tendencias por ese
+# segmento (misma taxonomía _bucket_segmento_guia/SEGMENTO_GUIA_MAP que usa
+# render_segmentos, para que el foco sea exactamente lo que el usuario vio).
+# Riesgos NO se filtra: es auditoría de datos, no un corte de negocio. ─────────
+_segmento_foco = st.session_state.get("segmento_foco")
+_df_actual_full, _df_anterior_full = df_actual, df_anterior
+_total_act_full, _total_ant_full = total_act, total_ant
+
+if _segmento_foco:
+    _m_foco_act = df_actual['categoria_carroceria'].apply(_bucket_segmento_guia) == _segmento_foco
+    _m_foco_ant = df_anterior['categoria_carroceria'].apply(_bucket_segmento_guia) == _segmento_foco
+    df_actual = df_actual[_m_foco_act]
+    df_anterior = df_anterior[_m_foco_ant]
+    total_act = len(df_actual)
+    total_ant = len(df_anterior)
+    if total_act == 0:
+        st.warning(f"🔎 Foco '{_segmento_foco}' no tiene datos con los filtros actuales — se quitó "
+                   f"automáticamente.")
+        st.session_state.pop("segmento_foco", None)
+        df_actual, df_anterior = _df_actual_full, _df_anterior_full
+        total_act, total_ant = _total_act_full, _total_ant_full
+        _segmento_foco = None
+    else:
+        _col_foco, _btn_foco = st.columns([5, 1])
+        with _col_foco:
+            st.info(f"🔎 Foco activo: **{_segmento_foco}** — Competidores y Tendencias de abajo "
+                    f"muestran solo este segmento ({total_act:,} uds).")
+        with _btn_foco:
+            if st.button("✕ Quitar filtro", key="quitar_foco_segmento"):
+                del st.session_state["segmento_foco"]
+                st.rerun()
+
+with st.expander("🏆 Competidores", expanded=False):
+    render_camiones()
+    st.divider()
+    render_tractos()
+    st.divider()
+    render_volquetes()
     st.divider()
     render_competencia()
     st.divider()
     render_sinotruk()
-    st.divider()
-    render_mapa_origen()
 
-if st.checkbox("🔍 Auditoría del Sistema", value=False,
-               help="Control de calidad interno (Cobertura AAP) -- no es parte del reporte de gerencia."):
-    render_auditoria()
+with st.expander("📈 Tendencias", expanded=False):
+    render_market_share_detalle()
+
+# Restaurar el universo completo antes de Riesgos (no se filtra por segmento).
+df_actual, df_anterior = _df_actual_full, _df_anterior_full
+total_act, total_ant = _total_act_full, _total_ant_full
+
+with st.expander(f"⚠️ Riesgos{_badge_riesgos}", expanded=False):
+    render_riesgos(_alertas_continuidad)
 
 # ── FOOTER ────────────────────────────────────────────────────────────────────
 st.divider()
