@@ -10,6 +10,7 @@ import io
 
 import pandas as pd
 import streamlit as st
+from pandas.io.formats.style import Styler
 
 
 def pct(parte: float, total: float, decimales: int = 1) -> float:
@@ -58,6 +59,26 @@ def excel_bytes(df_tuple, hoja="Datos") -> bytes:
     return buf.getvalue()
 
 
+def fmt_tabla(df_tabla, extra: dict | None = None):
+    """Devuelve un Styler con separador de miles ('{:,.0f}') en columnas
+    numéricas y '%' con 1 decimal en las que tienen '%' en el nombre --
+    evita que las tablas de informe muestren enteros/porcentajes pelados
+    (ej. '5934', '100') al lado de tarjetas KPI que sí formatean.
+
+    Acepta tanto un DataFrame como un Styler ya armado (ej. con
+    `.style.apply(...)` para resaltar filas), y un `extra` con overrides de
+    formato manuales (ej. precios en '${:,.2f}') que no se pisan.
+    """
+    styler = df_tabla if isinstance(df_tabla, Styler) else df_tabla.style
+    base = styler.data
+    fmt = dict(extra or {})
+    for col in base.columns:
+        if col in fmt or not pd.api.types.is_numeric_dtype(base[col]):
+            continue
+        fmt[col] = '{:.1f}%' if '%' in col else '{:,.0f}'
+    return styler.format(fmt) if fmt else styler
+
+
 def render_bloque(titulo, fig, df_tabla, key, nombre="datos"):
     raw = df_tabla.data if hasattr(df_tabla, 'data') else df_tabla
     c1, c2 = st.columns([6, 1])
@@ -84,7 +105,7 @@ def render_bloque(titulo, fig, df_tabla, key, nombre="datos"):
         st.plotly_chart(fig, use_container_width=True,
                         config={'displayModeBar': True, 'displaylogo': False})
     with st.expander("📊 Ver tabla", expanded=False):
-        st.dataframe(df_tabla, hide_index=True, use_container_width=True)
+        st.dataframe(fmt_tabla(df_tabla), hide_index=True, use_container_width=True)
 
 
 def render_kpi_cards(kpis: list[dict]):
@@ -100,7 +121,7 @@ def render_kpi_cards(kpis: list[dict]):
 
 def tabla_dl(df_tabla: pd.DataFrame, key: str, nombre: str = "datos"):
     """Muestra un dataframe con botones de descarga xlsx/csv debajo."""
-    st.dataframe(df_tabla, hide_index=True, use_container_width=True)
+    st.dataframe(fmt_tabla(df_tabla), hide_index=True, use_container_width=True)
     cx, cy = st.columns(2)
     with cx:
         try:

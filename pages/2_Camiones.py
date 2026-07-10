@@ -15,7 +15,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from shared.dashboard_helpers import (  # noqa: E402
-    calc_var, descargar_csv, excel_bytes, pct, render_bloque,
+    calc_var, descargar_csv, excel_bytes, fmt_tabla, pct, render_bloque,
     render_kpi_cards, safe_selectbox, tabla_dl, vc_reales,
 )
 from shared.riesgos import (  # noqa: E402
@@ -510,12 +510,18 @@ if f_ini > f_fin:
 df_actual   = df[(df['fecha']>=f_ini)   & (df['fecha']<=f_fin)]
 df_anterior = df[(df['fecha']>=f_ini_a) & (df['fecha']<=f_fin_a)]
 
+# Snapshot del mercado total (todas las marcas, mismo rango de fechas) antes
+# del filtro Sinotruk -- se usa como referencia real de mercado para las
+# tarjetas comparativas (Competencia, share Sinotruk) cuando la vista está en
+# Modo Sinotruk, donde df_actual/df_anterior quedan reducidos a una sola marca.
+df_mercado_actual, df_mercado_anterior = df_actual, df_anterior
+
 # Filtro Sinotruk si aplica
 es_sinotruk = "Sinotruk" in vista
+def mask_sin(d):
+    m = d[COL_MARCA].astype(str).str.upper().str.strip() == "SINOTRUK"
+    return d[m]
 if es_sinotruk:
-    def mask_sin(d):
-        m = d[COL_MARCA].astype(str).str.upper().str.strip() == "SINOTRUK"
-        return d[m]
     df_actual   = mask_sin(df_actual)
     df_anterior = mask_sin(df_anterior)
 
@@ -558,11 +564,19 @@ total_act = len(df_actual)
 total_ant = len(df_anterior)
 var_pct   = (total_act-total_ant)/total_ant*100 if total_ant>0 else None
 
-dias = max((f_fin-f_ini).days+1, 1)
-dias_año = 366 if año_fin_int%4==0 else 365
-proyeccion = int(total_act*dias_año/dias) if total_act>0 else 0
+# FIX: la proyección extrapola el RITMO DE año_fin_int, no el promedio de
+# todo el rango de fechas seleccionado (que puede abarcar varios años) --
+# antes, con el filtro default de 4 años, "Proyección 2026" en realidad
+# devolvía el promedio anual 2023-2026 disfrazado de proyección del año.
+f_ini_proy = max(f_ini, pd.Timestamp(año_fin_int, 1, 1))
+df_proy    = df_actual[(df_actual['fecha']>=f_ini_proy) & (df_actual['fecha']<=f_fin)]
+dias_proy  = max((f_fin-f_ini_proy).days+1, 1)
+dias_año   = 366 if año_fin_int%4==0 else 365
+proyeccion = int(len(df_proy)*dias_año/dias_proy) if not df_proy.empty else 0
 df_ant_año = df[df['año']==año_fin_int-1]
-if cat_sel:
+if es_sinotruk:
+    df_ant_año = mask_sin(df_ant_año)
+elif cat_sel:
     df_ant_año = df_ant_año[df_ant_año['categoria_carroceria'].isin(cat_sel)]
 cierre_ant = len(df_ant_año)
 var_proy   = (proyeccion-cierre_ant)/cierre_ant*100 if cierre_ant>0 else 0
@@ -617,6 +631,7 @@ def render_market_share_detalle():
     tend['Año'] = tend['año'].astype(str)
     meses_ord = [m for m in MESES_NOMBRES if m in tend['mes_nombre'].unique()]
     fig_t = px.line(tend, x='mes_nombre', y='Unidades', color='Año', markers=True,
+                    labels={'mes_nombre': 'Mes'},
                     color_discrete_sequence=COLOR_PALETTE, title="Tendencia Mensual Histórica")
     fig_t.update_layout(plot_bgcolor='white', height=420,
                         xaxis={'categoryorder':'array','categoryarray':meses_ord})
@@ -681,7 +696,7 @@ def render_market_share_detalle():
                 if any(fila.get(str(a),0)>0 for a in años_lista):
                     resumen_s.append(fila)
             if resumen_s:
-                st.dataframe(pd.DataFrame(resumen_s), hide_index=True, use_container_width=True)
+                st.dataframe(fmt_tabla(pd.DataFrame(resumen_s)), hide_index=True, use_container_width=True)
 
         with st.expander("🔍 Ver tabla — Composición por Segmento (marca + modelo)", expanded=False):
             segs_disp = [s for s in SEG_ORDEN[:-1] if (df_actual['segmento_peso']==s).any()]
@@ -694,7 +709,7 @@ def render_market_share_detalle():
             comp['% del segmento'] = (comp['Unidades']/total*100).round(1)
             comp.columns = ['Marca', 'Modelo', 'Unidades', '% del segmento']
             st.caption(f"{seg_pick} — {total:,} unidades")
-            st.dataframe(comp, hide_index=True, use_container_width=True, height=400)
+            st.dataframe(fmt_tabla(comp), hide_index=True, use_container_width=True, height=400)
 
     else:
         st.markdown("##### 📋 Variación Anual por Tipo de Carrocería")
@@ -713,7 +728,7 @@ def render_market_share_detalle():
             if any(fila.get(str(a),0)>0 for a in años_lista):
                 resumen.append(fila)
         if resumen:
-            st.dataframe(pd.DataFrame(resumen), hide_index=True, use_container_width=True)
+            st.dataframe(fmt_tabla(pd.DataFrame(resumen)), hide_index=True, use_container_width=True)
         elif años_lista:
             st.info(f"Años disponibles: {años_lista}. Verifica los filtros de carrocería.")
     with st.expander("🥧 Ver más cortes (Carrocería, Combustible, Tracción)", expanded=False):
@@ -793,6 +808,7 @@ def render_comparador_marcas():
         h2h['mes_nombre'] = pd.Categorical(h2h['mes_nombre'], MESES_NOMBRES, ordered=True)
         fig_h = px.line(h2h.sort_values('mes_nombre').melt(id_vars='mes_nombre', var_name='Actor', value_name='Uds'),
                         x='mes_nombre', y='Uds', color='Actor', markers=True,
+                        labels={'mes_nombre': 'Mes'},
                         color_discrete_sequence=COLOR_PALETTE, title="Tendencia mensual")
         fig_h.update_layout(plot_bgcolor='white', height=280)
         st.plotly_chart(fig_h, use_container_width=True)
@@ -858,7 +874,7 @@ def render_competencia():
 
     with col_izq:
         st.markdown(f"##### 📋 {label_a}s  ·  mín {min_uds} uds")
-        ev = st.dataframe(rv.style.apply(destacar_sinotruk, axis=1),
+        ev = st.dataframe(fmt_tabla(rv.style.apply(destacar_sinotruk, axis=1)),
                           hide_index=True, use_container_width=True,
                           on_select="rerun", selection_mode="single-row")
 
@@ -915,7 +931,7 @@ def render_competencia():
                     fob_m[f'{nom_p} Prom'] = fob_m[f'{nom_p} Prom'].apply(lambda x: f"US$ {x:,.0f}")
                     top_mod = top_mod.merge(fob_m, left_on='Modelo', right_on=COL_MODELO,
                                             how='left').drop(columns=COL_MODELO, errors='ignore')
-                st.dataframe(top_mod, hide_index=True, use_container_width=True)
+                st.dataframe(fmt_tabla(top_mod), hide_index=True, use_container_width=True)
 
             # Explorar carrocería específica
             with st.expander("🚛 Explorar carrocería específica"):
@@ -944,7 +960,7 @@ def render_competencia():
                                 if c in mods_carr.columns:
                                     mods_carr[c] = mods_carr[c].apply(lambda x: f"US$ {x:,.0f}")
                         mods_carr = mods_carr.rename(columns={COL_MODELO:'Modelo'})
-                        st.dataframe(mods_carr, hide_index=True, use_container_width=True)
+                        st.dataframe(fmt_tabla(mods_carr), hide_index=True, use_container_width=True)
 
             # Evolución anual — chart + tabla
             with st.expander("📈 Evolución anual"):
@@ -962,7 +978,7 @@ def render_competencia():
                 tbl_anual['año'] = tbl_anual['año'].astype(str)
                 tbl_wide = tbl_anual.set_index('año').T.reset_index(drop=True)
                 tbl_wide.insert(0, 'Actor', actor[:30])
-                st.dataframe(tbl_wide, hide_index=True, use_container_width=True)
+                st.dataframe(fmt_tabla(tbl_wide), hide_index=True, use_container_width=True)
 
             # Evolución de precios por modelo
             if col_p and col_p in df_f.columns and COL_MODELO in df_f.columns:
@@ -996,7 +1012,7 @@ def render_competencia():
                                               'Tendencia':'📈 Subida' if vp>0 else '📉 Bajada'})
                         if var_p:
                             df_vp = pd.DataFrame(var_p).sort_values('Variación %', ascending=False)
-                            st.dataframe(df_vp, hide_index=True, use_container_width=True)
+                            st.dataframe(fmt_tabla(df_vp), hide_index=True, use_container_width=True)
                             mx, mn = df_vp.iloc[0], df_vp.iloc[-1]
                             cm1,cm2 = st.columns(2)
                             cm1.metric(f"📈 Mayor Subida: {mx['Modelo']}", mx['Variación %'])
@@ -1033,7 +1049,7 @@ def render_competencia():
                                               'Tendencia':'📈 Subida' if vu>0 else '📉 Bajada'})
                         if var_u:
                             df_vu = pd.DataFrame(var_u).sort_values('Variación %', ascending=False)
-                            st.dataframe(df_vu, hide_index=True, use_container_width=True)
+                            st.dataframe(fmt_tabla(df_vu), hide_index=True, use_container_width=True)
                             mu1, mu2 = df_vu.iloc[0], df_vu.iloc[-1]
                             cu1,cu2 = st.columns(2)
                             cu1.metric(f"📈 Mayor Crecimiento: {mu1['Modelo']}", mu1['Variación %'])
@@ -1112,6 +1128,7 @@ def render_competencia():
                 h2h['mes_nombre'] = pd.Categorical(h2h['mes_nombre'], MESES_NOMBRES, ordered=True)
                 fig_h = px.line(h2h.melt(id_vars='mes_nombre', var_name='Actor', value_name='Uds'),
                                 x='mes_nombre', y='Uds', color='Actor', markers=True,
+                                labels={'mes_nombre': 'Mes'},
                                 color_discrete_sequence=COLOR_PALETTE)
                 fig_h.update_layout(plot_bgcolor='white', height=230)
                 st.plotly_chart(fig_h, use_container_width=True)
@@ -1149,7 +1166,7 @@ def render_competencia():
                             ev_s['Var%'] = ((ev_s[anios_t[-1]]-ev_s[anios_t[0]])/
                                             ev_s[anios_t[0]]*100).fillna(0).apply(
                                             lambda x: f"{x:+.1f}%")
-                        st.dataframe(ev_s, hide_index=True, use_container_width=True)
+                        st.dataframe(fmt_tabla(ev_s), hide_index=True, use_container_width=True)
 
                 # Top modelos del último año
                 st.markdown(f"##### 🏗️ Top Modelos — {año_sel}")
@@ -1171,7 +1188,7 @@ def render_competencia():
                                 tm = tm.merge(fob_t, left_on='Modelo',
                                               right_on=COL_MODELO, how='left').drop(
                                               columns=COL_MODELO, errors='ignore')
-                            st.dataframe(tm, hide_index=True, use_container_width=True)
+                            st.dataframe(fmt_tabla(tm), hide_index=True, use_container_width=True)
 
                 # Evolución de precios comparativa
                 if col_pc and col_pc in df_a.columns and col_pc in df_b.columns:
@@ -1519,7 +1536,7 @@ def render_sinotruk():
             col_precio_label = f'{nombre_precio_sin} Promedio' if nombre_precio_sin else None
             if col_precio_label and col_precio_label in top_modelos_sin.columns:
                 format_sin[col_precio_label] = '${:,.2f}'
-            st.dataframe(top_modelos_sin.style.format(format_sin), hide_index=True, use_container_width=True)
+            st.dataframe(fmt_tabla(top_modelos_sin, format_sin), hide_index=True, use_container_width=True)
             cx_tm, cy_tm = st.columns(2)
             with cx_tm:
                 st.download_button("📥 xlsx", excel_bytes(tuple(top_modelos_sin.itertuples(index=False)), "top_modelos_sinotruk"),
@@ -1810,7 +1827,7 @@ def render_mapa_origen():
                         marcas_p_full = marcas_p_full.merge(fob_p, left_on='Marca',
                                                              right_on=COL_MARCA, how='left').drop(
                                                              columns=COL_MARCA, errors='ignore')
-                    st.dataframe(marcas_p_full, hide_index=True, use_container_width=True)
+                    st.dataframe(fmt_tabla(marcas_p_full), hide_index=True, use_container_width=True)
 
             else:
                 # Vista general: tabla + charts
@@ -1840,7 +1857,7 @@ def render_mapa_origen():
                         lambda x: f"US$ {x:,.0f}" if pd.notna(x) else "N/A")
                 tabla_m.columns = (['País','Unidades','Top Marcas','% Share']
                                    + (['FOB Prom'] if 'fob_prom' in mapa_df.columns else []))
-                st.dataframe(tabla_m, hide_index=True, use_container_width=True)
+                st.dataframe(fmt_tabla(tabla_m), hide_index=True, use_container_width=True)
 
                 if len(mapa_df) >= 2:
                     st.divider()
@@ -1994,7 +2011,7 @@ def render_auditoria():
             "cobertura_pct": "Cobertura %",
         })
         st.dataframe(
-            comp_show[["Marca", "AAP (uds)", "Veritrade (DUAs)", "Cobertura %"]],
+            fmt_tabla(comp_show[["Marca", "AAP (uds)", "Veritrade (DUAs)", "Cobertura %"]]),
             use_container_width=True,
             hide_index=True,
         )
@@ -2068,6 +2085,7 @@ def render_mercado():
         tend['Año'] = tend['año'].astype(str)
         meses_ord = [m for m in MESES_NOMBRES if m in tend['mes_nombre'].unique()]
         fig_t = px.line(tend, x='mes_nombre', y='Unidades', color='Año', markers=True,
+                        labels={'mes_nombre': 'Mes'},
                         color_discrete_sequence=COLOR_PALETTE)
         fig_t.update_layout(plot_bgcolor='white', height=350,
                             xaxis={'categoryorder':'array','categoryarray':meses_ord})
@@ -2122,7 +2140,7 @@ def render_segmentos():
     with st.expander("🔍 Ver detalle completo por carrocería (8 categorías)", expanded=False):
         detalle = vc_reales(df_actual['categoria_carroceria']).reset_index()
         detalle.columns = ['Carrocería','Unidades']
-        st.dataframe(detalle, hide_index=True, use_container_width=True)
+        st.dataframe(fmt_tabla(detalle), hide_index=True, use_container_width=True)
 
 def render_marca_segmento():
     st.markdown("## 🏆 Análisis por Marca y Segmento")
@@ -2235,7 +2253,7 @@ def render_tractos():
         with st.expander(f"{marca} — {int(rank[marca]):,} uds"):
             tabla_t = trac.reset_index()
             tabla_t.columns = ['Configuración', 'Unidades']
-            st.dataframe(tabla_t, hide_index=True, use_container_width=True)
+            st.dataframe(fmt_tabla(tabla_t), hide_index=True, use_container_width=True)
 
 def render_volquetes():
     st.markdown("## 🏗️ Volquetes")
@@ -2355,7 +2373,14 @@ def render_resumen_ejecutivo(alertas_continuidad: pd.DataFrame):
     """Portada del informe: semáforo de negocio + insights + Top N marcas + mix
     de segmento + teaser de Riesgos. Reusa agregados livianos (no toca
     render_mercado/render_segmentos)."""
-    rank_act_sem = vc_reales(df_actual[COL_MARCA])
+    # FIX: en Modo Sinotruk, df_actual/df_anterior quedan reducidos a una
+    # sola marca -- calcular "líder"/"Competencia" contra ese subset hacía
+    # que la propia Sinotruk se comparara consigo misma ("Competencia:
+    # SINOTRUK +0.0pp"). Se usa el snapshot de mercado total en su lugar.
+    df_comp_act = df_mercado_actual if es_sinotruk else df_actual
+    df_comp_ant = df_mercado_anterior if es_sinotruk else df_anterior
+
+    rank_act_sem = vc_reales(df_comp_act[COL_MARCA])
     total_mercado_sem = int(rank_act_sem.sum())
     lider = rank_act_sem.sort_values(ascending=False).index[0] if not rank_act_sem.empty else None
 
@@ -2370,7 +2395,7 @@ def render_resumen_ejecutivo(alertas_continuidad: pd.DataFrame):
 
     if lider:
         ms_lider_act = pct(int(rank_act_sem.get(lider, 0)), total_mercado_sem)
-        rank_ant_sem = vc_reales(df_anterior[COL_MARCA])
+        rank_ant_sem = vc_reales(df_comp_ant[COL_MARCA])
         total_mercado_ant_sem = int(rank_ant_sem.sum())
         ms_lider_ant = pct(int(rank_ant_sem.get(lider, 0)), total_mercado_ant_sem)
         delta_lider = round(ms_lider_act - ms_lider_ant, 1)
@@ -2384,7 +2409,11 @@ def render_resumen_ejecutivo(alertas_continuidad: pd.DataFrame):
     else:
         estado_comp, txt_comp = "⚪", "sin datos"
 
-    _est_sin = calcular_estado_sinotruk(df_actual, df_anterior, total_act, total_ant)
+    # FIX: calcular_estado_sinotruk() espera un df CON todas las marcas para
+    # medir el share de Sinotruk dentro del total -- pasarle df_actual ya
+    # filtrado a Sinotruk (como hacía antes en Modo Sinotruk) daba ~100%
+    # share siempre, no el share real de mercado.
+    _est_sin = calcular_estado_sinotruk(df_comp_act, df_comp_ant, len(df_comp_act), len(df_comp_ant))
 
     cs1, cs2, cs3 = st.columns(3)
     cs1.metric(f"{estado_mercado} Mercado", txt_mercado)
@@ -2425,11 +2454,20 @@ def render_resumen_ejecutivo(alertas_continuidad: pd.DataFrame):
         with top_hdr:
             st.markdown(f"##### 👑 Top {top_resumen} marcas")
         topN_resumen = rank_act.sort_values(ascending=False).head(top_resumen)
-        tabla_topN = pd.DataFrame([
+        filas_topN = [
             {'Marca': m, 'Unidades': int(u), 'Share (%)': pct(u, total_mercado)}
             for m, u in topN_resumen.items()
-        ])
-        st.dataframe(tabla_topN, hide_index=True, use_container_width=True)
+        ]
+        # FIX: "Regla del Top Desplazable" (guia estructura antes ppt.txt) --
+        # toda tabla Top N de un informe gerencial cierra con "Otros"/"Total
+        # General"; a esta portada le faltaba, a diferencia de "🏠 Mercado".
+        resto_resumen = total_mercado - int(topN_resumen.sum())
+        if resto_resumen > 0:
+            filas_topN.append({'Marca': 'Otros competidores', 'Unidades': resto_resumen,
+                               'Share (%)': pct(resto_resumen, total_mercado)})
+        filas_topN.append({'Marca': 'Total General', 'Unidades': total_mercado, 'Share (%)': 100.0})
+        tabla_topN = pd.DataFrame(filas_topN)
+        st.dataframe(fmt_tabla(tabla_topN), hide_index=True, use_container_width=True)
     with c2:
         st.markdown("##### 📊 Mercado por segmento")
         if MOSTRAR_GRAFICO and total_seg:
