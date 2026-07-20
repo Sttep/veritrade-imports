@@ -231,7 +231,12 @@ class Config:
         if "modelos" in xl.sheet_names:
             df = xl.parse("modelos", dtype=str).dropna(subset=["marca"])
             for _, row in df.iterrows():
-                m = str(row.get("marca","")).upper().strip()
+                m_raw = str(row.get("marca","")).upper().strip()
+                # normaliza via el alias de la hoja 'marcas' (ya cargada arriba) --
+                # sin esto, una marca escrita distinto en 'modelos' que en 'marcas'
+                # (ej. "MERCEDES BENZ" vs "MERCEDES-BENZ") queda con una clave que
+                # nadie busca nunca, y el diccionario parece vacio para esa marca.
+                m = self.marca_map.get(m_raw, m_raw)
                 mod = str(row.get("modelo","")).upper().strip()
                 if m and mod:
                     self.modelos.setdefault(m, set()).add(mod)
