@@ -24,9 +24,9 @@ inputs/
 outputs/
 jobs/
 backend.db
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
+_legacy/frontend/node_modules/
+_legacy/frontend/dist/
+_legacy/frontend/.vite/
 
 # Backups locales (se generan solos en cada corrida del pipeline, no se versionan)
 *.bak
