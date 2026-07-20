@@ -1,20 +1,48 @@
 # Datos de trabajo (xlsx) — ignorados por defecto para no publicar data privada.
 *.xlsx
-# ...salvo los archivos de ejemplo nombrados explícitamente:
-!inputs/veritrade_PE_I_8704229000.xlsx
-!outputs/veritrade_PE_I_8704229000_estructurado.xlsx
-!outputs/veritrade_PE_I_8704229000_normalizado.xlsx
+# Bronze y Silver: datos crudos y estructurados (privados)
+data/bronze/*.xlsx
+data/silver/*.xlsx
+data/silver/*.parquet
+# Cuarentena: descargas de Veritrade sin revisar por gatekeeper-datos todavia (privados)
+data/cuarentena/*.xlsx
+# Parquets Gold sí se versionan (servidos por Streamlit Cloud), pero los
+# intermedios por archivo (*_normalizado.parquet) no son el consolidado final.
+!data/gold/*.parquet
+data/gold/*_normalizado.parquet
+
+# Archivos de ejemplo nombrados explícitamente
 !data/ejemplo.xlsx
 
 __pycache__/
 .cache/
 .env
-CLAUDE.md
-.claude/
+.claude/settings.local.json
 
-# Web service runtime
+# Web service runtime (legacy)
+inputs/
+outputs/
 jobs/
 backend.db
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
+_legacy/frontend/node_modules/
+_legacy/frontend/dist/
+_legacy/frontend/.vite/
+
+# Backups locales (se generan solos en cada corrida del pipeline, no se versionan)
+*.bak
+*.bak_pre_*
+*.parquet.bak_*
+
+# Python / tooling
+.venv/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+
+# Beads / Dolt files (added by bd init)
+.beads/proxieddb/

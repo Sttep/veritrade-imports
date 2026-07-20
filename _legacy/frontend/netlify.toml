@@ -1,0 +1,10 @@
+[build]
+  base    = "frontend"
+  # Cambiamos el comando para que no busque cosas de Node/npm, sino que prepare tu HTML
+  command = "echo 'Preparando entorno estático'"
+  publish = "dist"
+
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200

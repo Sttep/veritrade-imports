@@ -1,0 +1,155 @@
+================================================================================
+GUIA METODOLOGICA Y ESTRUCTURA DE REPORTE: MERCADO AUTOMOTRIZ PESADO (A MARZO)
+================================================================================
+
+Esta guia consolida la estructura, la maquetacion tecnica y las especificaciones
+de formato corporativo necesarias para recrear el reporte de mercado al cierre 
+de marzo, utilizando los estandares visuales de alta direccion de Withmory y 
+DV Motors.
+
+--------------------------------------------------------------------------------
+SECCION 1: LINEAMIENTOS GENERALES DE DISENO Y FORMATO CORPORATIVO
+--------------------------------------------------------------------------------
+
+[A] Maquetacion del Espacio y Distribucion:
+* Encabezados Dinamicos (Filas 1 a 3): Las primeras filas deben ir en color 
+  negro puro para alojar el titulo de la pestana en texto blanco (fuente Arial 
+  o Segoe UI, tamano 16, en negrita).
+* Linea de Acento Corporativo: Inmediatamente debajo del bloque negro, colocar 
+  una franja delgada o borde grueso de color amarillo industrial.
+* Seccion de Filtros Flotantes: En la fila 4, dejar un espacio limpio para los 
+  segmentadores de datos (Slicers) de "Mes" (Marzo / Acumulado) y "Region".
+* Fondo de las Tablas: Las celdas deben mantener un fondo blanco puro con lineas 
+  de cuadricula en gris muy claro para evitar bloques densos de texto.
+
+[B] Formatos Estadisticos y Reglas de Datos:
+* Regla del "Top" Desplazable: Las listas con limites (Top 10 o Top 15) deben 
+  incluir una fila final de "Otros competidores" mediante la formula 
+  =(Total Mercado) - SUMA(Top) antes de mostrar la fila de "Total General".
+* Precision Numerica:
+  - Las unidades fisicas (vehiculos) se configuran en formato entero sin 
+    decimales (ej. 1,245).
+  - Las participaciones de mercado (Market Share) y variaciones porcentuales se 
+    expresan estrictamente con un solo decimal (ej. 84.7% o 86.7%).
+
+--------------------------------------------------------------------------------
+SECCION 2: ARQUITECTURA TECNICA Y CONSTITUCION DE TABLAS POR PESTANA
+--------------------------------------------------------------------------------
+
+1. Pestana: Mercado a Marzo
+* Proposito: Dashboard ejecutivo con la foto macro de la industria pesada.
+* Alcance: Top 15 Marcas del mercado total (las restantes van a "Otros").
+* Columnas de la Tabla:
+  - Ranking (Numerico 1 al 15)
+  - Marca (Texto)
+  - Marzo (Unidades inmatriculadas/importadas en el mes)
+  - Acumulado (Suma neta Enero + Febrero + Marzo)
+  - Market Share (%) [=(Acumulado Marca / Total Mercado Acumulado)]
+  - Var. % vs Ano Anterior (Comparativo porcentual vs primer trimestre anterior)
+
+2. Pestana: Mercado por Segmento
+* Proposito: Clasificar el volumen total en las tres grandes categorias.
+* Alcance: 3 Segmentos Estrictos (Camiones, Tractos y Volquetes).
+* Columnas de la Tabla:
+  - Segmento (Filas fijas: Camiones / Tractos / Volquetes)
+  - Unidades Ano Anterior (Acumulado a la misma fecha)
+  - Unidades Ano Actual (Volumen acumulado Ene-Mar presente)
+  - Participacion por Segmento (%) (Peso sobre el total de la industria pesada)
+  - Crecimiento Absoluto [=(Ano Actual - Ano Anterior)]
+
+3. Pestana: Analisis por Marca y Segmento
+* Proposito: Matriz cruzada para evaluar competidores en cada nicho.
+* Alcance: Top 10 Marcas Competidoras generales del mercado pesado.
+* Estructura de la Tabla:
+  - Eje Vertical (Filas): Las 10 marcas lideres de mayor a menor volumen.
+  - Eje Horizontal (Columnas Agrupadas):
+    > Bloque Camiones (Columnas: Unidades | % Share dentro de Camiones)
+    > Bloque Tractos (Columnas: Unidades | % Share dentro de Tractos)
+    > Bloque Volquetes (Columnas: Unidades | % Share dentro de Volquetes)
+  - Fila de Cierre: "Total General" con la suma de unidades por bloque.
+
+4. Pestana: Camiones
+* Proposito: Analisis profundo de camiones rigidos, medianos y de reparto.
+* Alcance: Top 10 Modelos comerciales mas vendidos en el pais.
+* Columnas de la Tabla:
+  - Marca | Modelo | Configuracion o Peso (ej. 4x2 Ligero, 6x2 Pesado)
+  - Unidades Marzo | Unidades Acumuladas | % Share Segmento
+
+5. Pestana: Tractos
+* Proposito: Monitoreo de tractocamiones/remolcadores de larga distancia.
+* Alcance: Top 5 Marcas Lideres en remolcadores y apertura por tren motriz.
+* Estructura de la Tabla:
+  - Jerarquia de Filas: Marca -> Desplegable a Configuracion (ej. 6x4)
+  - Columnas: Unidades Acumuladas | % Share Tractos | Variacion vs Ano Anterior
+
+6. Pestana: Volquetes
+* Proposito: Analisis de volquetes para construccion, infraestructura y mineria.
+* Alcance: Top 5 Marcas Lideres que compiten directamente en tolvas pesadas.
+* Estructura de la Tabla:
+  - Filas: Marcas enfocadas en obras (bloque donde se evalua a Sinotruk).
+  - Columnas: Total Unidades Acumuladas | Subcolumna 6x4 | Subcolumna 8x4 | 
+    % Market Share del Nicho Volquetes
+
+7. Pestana: Volquetes por Origen
+* Proposito: Medir la participacion de las distintas regiones de manufactura.
+* Alcance: 100% de los Origenes Registrados en las importaciones.
+* Columnas de la Tabla:
+  - Origen (China, Europa, Brasil, Japon/Corea, Otros)
+  - Marcas Representativas (Ej. China: Sinotruk, Shacman / Europa: Volvo, Scania)
+  - Unidades Acumuladas (Volumen importado de esa procedencia hasta marzo)
+  - % Share de Origen (Porcentaje de dominacion sobre el total de volquetes)
+
+8. Pestana: Comparativo por Tipo de Combustible (2026 vs 2025)
+* Proposito: Evaluar la transicion energetica y penetracion de tecnologias.
+* Alcance: 4 Categorias Tecnologicas principales.
+* Estructura de la Tabla:
+  - Filas: Diesel | GNV o GNC | Hibridos | Electricos Puros (EV)
+  - Columnas:
+    > % Participacion Periodo Anterior (Base: ej. 84.7% o 86.7% segun grafica)
+    > % Participacion Periodo Actual (Muestra del ano en curso)
+    > Unidades Reales Trimestre Actual
+    > Desplazamiento Puntos Porcentuales [=(% Actual - % Anterior)]
+
+9. Pestana: Status Distribuidores Sinotruk
+* Proposito: Matriz operativa interna para monitorear ventas, cuotas e inventario.
+* Alcance: 100% de los Locales, Sucursales y Distribuidores a nivel nacional.
+* Columnas de la Tabla:
+  - Zona o Ubicacion (Norte, Centro, Sur, Lima) | Concesionario
+  - Meta Trimestral (Objetivo comercial asignado al cierre de marzo)
+  - Venta Real Acumulada (Unidades efectivamente entregadas)
+  - % Cumplimiento [=(Venta Real / Meta Trimestral)] -> Vinculado a Semaforos
+  - Stock Fisico en Pisos (Inventario disponible en patio)
+  - Unidades en Transito (Importaciones proximas a arribar)
+
+10. Pestana: Status Distribuidores Sinotruk (Solo Prod. Relevante)
+* Proposito: Reporte enfocado en las unidades insignia ("Core Business").
+* Alcance: Top 3 Modelos Foco de alta rotacion (ej. Volquete 6x4, 8x4 y Tracto).
+* Estructura de la Tabla:
+  - Filas: Listado abreviado de distribuidores criticos.
+  - Columnas Cruzadas por Modelo:
+    > Modelo Foco A (Venta Acumulada | Stock en Patio)
+    > Modelo Foco B (Venta Acumulada | Stock en Patio)
+  - Dias de Inventario (Days of Supply) [=(Stock Total / Venta Promedio) * 30]
+
+--------------------------------------------------------------------------------
+SECCION 3: CONTROL VISUAL COMERCIAL (ALERTAS Y CONDICIONALES)
+--------------------------------------------------------------------------------
+
+Para las Pestanas 9 y 10, aplicar Formato Condicional suave en la columna de 
+% Cumplimiento para identificar estados criticos de la red comercial:
+
+* Verde Pastel: Cumplimiento mayor o igual a 100% de la meta trimestral.
+* Amarillo Tenue: Zona de riesgo, cumplimiento entre 85% y 99%.
+* Rojo Coral: Alerta critica, cumplimiento menor a 85% (requiere revision).
+
+--------------------------------------------------------------------------------
+[ALERTA / POR VERIFICAR]
+--------------------------------------------------------------------------------
+* Desfase Temporal en Combustibles: La lamina N8 titula su muestra como 
+  "(ENE-FEB)". Al consolidar el cierre a marzo, se debe validar si la base de 
+  datos de combustibles ya cuenta con el tercer mes o si mantendra un mes de 
+  desfase estadistico debido a los reportes gremiales externos.
+* Secuencia Logica del Libro: Las laminas registran marcas numericas consecutivas 
+  en la zona inferior (1, 2, 4, 5, 6, 3). Se recomienda ordenar las pestanas del 
+  libro de Excel siguiendo esa misma secuencia del negocio (de lo macro a lo micro).
+================================================================================
